@@ -1,0 +1,49 @@
+{
+    "version": "0.0.1",
+    "renderer": {
+        "cleardisplay": true,
+        "baseurl": "https://inky:a-password@inky.example.com",
+        "timeout": 30,
+        "retries": 3,
+        "sleepwindow": {
+            "start": "10:30pm",
+            "stop": "7:30am"
+        },
+        "default": "/image/unsplash,wallhaven",
+        "button": "/render/news",
+        "wakes": {
+            "10:15pm": "/image/wallhaven",
+            "10:20pm": "/image/unsplash",
+            "10:25pm": "/image/wallhaven",
+            "10:30pm": "/image/unsplash",
+            "10:35pm": "/image/wallhaven",
+            "10:40pm": "/image/unsplash",
+            "10:45pm": "/image/wallhaven",
+            "10:50pm": "/image/unsplash"
+        }
+    },
+    "wifi": {
+        "ssid": "My Network Name",
+        "pass": "a-secret-password",
+        "retries": 6
+    },
+    "ntp": {
+        "enabled": true,
+        "server1": "time.cloudflare.com",
+        "server2": "pool.ntp.org",
+        "timezone": "America/Los_Angeles",
+        "timezonedb": {
+            "api": "https://api.timezonedb.com/v2.1/get-time-zone",
+            "key": ""
+        },
+        "retries": 3
+    },
+    "mqtt": {
+        "enabled": true,
+        "server": "mqtt.example.com",
+        "port": 1883,
+        "user": "username",
+        "pass": "password",
+        "retries": 3
+    }
+}

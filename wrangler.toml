@@ -1,0 +1,25 @@
+name = "inky-renderer"
+minify = true
+workers_dev = false
+compatibility_date = "2025-02-04"
+compatibility_flags = ["nodejs_compat"]
+
+browser = { binding = "BROWSER" }
+kv_namespaces = [
+    { binding = "INKY_BROWSER_RENDERING", id = "d5c6c98d26824dd1966453a1b04ef7cf", preview_id = "45f7b4dd887c4146be8c96c6fa6e30ae" },
+]
+
+[observability]
+enabled = true
+
+[placement]
+mode = "smart"
+
+[env.dev]
+browser = { binding = "BROWSER" }
+kv_namespaces = [
+    { binding = "INKY_BROWSER_RENDERING", id = "d5c6c98d26824dd1966453a1b04ef7cf", preview_id = "45f7b4dd887c4146be8c96c6fa6e30ae" },
+]
+
+[env.dev.vars]
+DEVELOPMENT = "true"
