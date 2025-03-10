@@ -303,9 +303,11 @@ esp_err_t NTPSync(Inkplate &display, const JsonVariant &ntpConfig)
     const char *server2 = ntpSettings["server2"] | "pool.ntp.org";
     const char *timezone = ntpSettings["timezone"] | "America/Los_Angeles";
     int retries = ntpSettings["retries"].as<int>() | 3;
+    // User-specified offsets (in seconds)
     int gmtOffset = ntpSettings["gmtoffset"].as<int>() | 0;
     int daylightOffset = ntpSettings["daylightoffset"].as<int>() | 0;
 
+    // Optionally update offsets from a timezone database API
     JsonObject timezonedb = ntpSettings["timezonedb"];
     if (timezonedb["enabled"].as<bool>() && timezonedb["api"] && timezonedb["key"])
     {
@@ -335,6 +337,10 @@ esp_err_t NTPSync(Inkplate &display, const JsonVariant &ntpConfig)
             gmtOffset = tzdata["gmtOffset"].as<int>();
             if (tzdata["dst"].as<int>() == 1)
             {
+                daylightOffset = 0;
+            }
+            else
+            {
                 daylightOffset = 3600;
             }
         }
@@ -345,7 +351,7 @@ esp_err_t NTPSync(Inkplate &display, const JsonVariant &ntpConfig)
         https.end();
     }
 
-    Logger::logf(Logger::LOG_INFO, "NTP Servers: %s, %s / Timezone: %s (GMT: %d, Daylight: %d) / Retries: %d",
+    Logger::logf(Logger::LOG_INFO, "NTP Servers: %s, %s / Timezone: %s (GMT Offset: %d sec, Daylight Offset: %d sec) / Retries: %d",
                  server1, server2, timezone, gmtOffset, daylightOffset, retries);
     configTime(gmtOffset, daylightOffset, server1, server2);
 
@@ -360,6 +366,7 @@ esp_err_t NTPSync(Inkplate &display, const JsonVariant &ntpConfig)
         {
             Logger::logf(Logger::LOG_DEBUG, "Time sync successful!");
             delay(100);
+            // mktime() converts the local time (which includes DST if active) into epoch time (UTC)
             int epoch = mktime(&timeinfo);
             display.rtcSetEpoch(epoch);
             if (!display.rtcIsSet())
