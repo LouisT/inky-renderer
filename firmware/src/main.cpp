@@ -52,7 +52,7 @@ const char *deepSleepStartTime = "7:30am";
 RTC_DATA_ATTR bool hideSplashScreen = false;
 RTC_DATA_ATTR char lastWakeTime[9] = {0};
 
-// Draw battery percentage  + render screen// Draw battery percentage and update the display
+// Draw battery percentage + render screen
 void draw(const bool render = true, int rotation = display.Adafruit_GFX::getRotation())
 {
     double batteryVoltage = display.readBattery();
@@ -289,7 +289,7 @@ void setup()
                                ? config["renderer"]["button"].as<const char *>() // Render wake buton endpoint
                                : (strlen(lastWakeTime) > 0
                                       ? config["renderer"]["wakes"][lastWakeTime].as<const char *>() // Render last wake endpoint
-                                      : config["renderer"]["default"].as<const char *>()); // Render default endpoint
+                                      : config["renderer"]["default"].as<const char *>());           // Render default endpoint
     if (endpoint == nullptr)
     {
         delay(5000); // WARN: Don't burn out the screen!

@@ -127,6 +127,7 @@ ParsedTime parseTime(const String &timeStrOriginal)
     return result;
 }
 
+// Returns the epoch time of the next top of the hour
 time_t getNextTopOfHour(time_t now)
 {
     struct tm timeinfo;
@@ -193,7 +194,7 @@ WakeEntry getNextScheduledWake(time_t now, const std::map<String, String> &wakes
 
 // Calculates the next wake time based on the sleep window and wake schedule
 WakeEntry calculateNextWake(
-    time_t currentEpoch, // <--- Pass in the current epoch
+    time_t currentEpoch,
     const String &sleepStartStr,
     const String &sleepStopStr,
     const std::map<String, String> &wakes,
@@ -201,91 +202,117 @@ WakeEntry calculateNextWake(
 {
     WakeEntry result;
 
-    // Find the next top of the hour after currentEpoch and the next scheduled wake
-    time_t nextHour = getNextTopOfHour(currentEpoch);
-    WakeEntry entry = getNextScheduledWake(currentEpoch, wakes);
-
-    // Create placeholders for the chosen epoch and endpoint
-    time_t earliest;
-    String chosenEndpoint;
-
-    // If there is no scheduled time, default to nextHour
-    if (entry.epoch == (time_t)(-1))
-    {
-        // No scheduled times found; default to nextHour
-        earliest = nextHour;
-        chosenEndpoint = defaultEndpoint;
-    }
-    else
-    {
-        // Scheduled time found, check if it's earlier than nextHour
-        if (entry.epoch < nextHour)
-        {
-            earliest = entry.epoch;
-            chosenEndpoint = entry.endpoint;
-        }
-        else
-        {
-            earliest = nextHour;
-            chosenEndpoint = defaultEndpoint;
-        }
-    }
-
-    // Check if earliest is inside the sleep window. If yes, jump to the window's "stop" time
+    // Parse sleep window boundaries.
     ParsedTime sleepStart = parseTime(sleepStartStr);
     ParsedTime sleepStop = parseTime(sleepStopStr);
     if (!sleepStart.valid || !sleepStop.valid)
     {
-        result.epoch = earliest;
-        result.endpoint = chosenEndpoint;
+        // If sleep window times are invalid, fall back to next top of hour.
+        result.epoch = getNextTopOfHour(currentEpoch);
+        result.endpoint = defaultEndpoint;
         return result;
     }
 
-    // Convert earliest to localtime
-    struct tm earliestTm;
-    localtime_r(&earliest, &earliestTm);
-    int earliestMinutes = earliestTm.tm_hour * 60 + earliestTm.tm_min;
+    // Convert sleep boundaries to minutes since midnight.
     int startMinutes = sleepStart.hour * 60 + sleepStart.minute;
     int stopMinutes = sleepStop.hour * 60 + sleepStop.minute;
     bool crossesMidnight = (startMinutes > stopMinutes);
 
-    // Determine if 'earliest' is inside the [start, stop) window
-    bool inSleepWindow = false;
+    // Convert current time to local time.
+    struct tm currentTm;
+    localtime_r(&currentEpoch, &currentTm);
+    int currentMinutes = currentTm.tm_hour * 60 + currentTm.tm_min;
+
+    // If we are already in the sleep window, schedule wake-up at sleepStop.
+    bool currentlySleeping = false;
     if (!crossesMidnight)
     {
-        // Window does NOT cross midnight
-        inSleepWindow = (earliestMinutes >= startMinutes && earliestMinutes < stopMinutes);
+        currentlySleeping = (currentMinutes >= startMinutes && currentMinutes < stopMinutes);
     }
     else
     {
-        // Window crosses midnight
-        inSleepWindow = (earliestMinutes >= startMinutes || earliestMinutes < stopMinutes);
+        // For windows crossing midnight (e.g. 10:30pm to 7:30am)
+        currentlySleeping = (currentMinutes >= startMinutes || currentMinutes < stopMinutes);
     }
-
-    if (inSleepWindow)
+    if (currentlySleeping)
     {
-        // Build a tm for the "stop" time on the same day
-        struct tm wakeTm = earliestTm;
+        // Build a time structure for today's sleepStop.
+        struct tm wakeTm = currentTm;
         wakeTm.tm_hour = sleepStop.hour;
         wakeTm.tm_min = sleepStop.minute;
         wakeTm.tm_sec = 0;
-        time_t windowStopEpoch = mktime(&wakeTm);
-
-        // If the "stop" epoch isn't in the future, it means it passed for today -> add 1 day
-        if (windowStopEpoch <= earliest)
+        time_t sleepStopEpoch = mktime(&wakeTm);
+        // If the computed sleepStop has already passed relative to currentEpoch, add 1 day.
+        if (sleepStopEpoch <= currentEpoch)
         {
             wakeTm.tm_mday += 1;
-            windowStopEpoch = mktime(&wakeTm);
+            sleepStopEpoch = mktime(&wakeTm);
         }
-
-        // Use that new time as the final "earliest"
-        earliest = windowStopEpoch;
-        chosenEndpoint = defaultEndpoint;
+        result.epoch = sleepStopEpoch;
+        result.endpoint = defaultEndpoint;
+        return result;
     }
 
-    // Fill in the result
-    result.epoch = earliest;
-    result.endpoint = chosenEndpoint;
+    // Not currently sleeping; choose between the next scheduled wake and next top-of-hour.
+    time_t nextHour = getNextTopOfHour(currentEpoch);
+    WakeEntry scheduledWake = getNextScheduledWake(currentEpoch, wakes);
+
+    time_t candidateEpoch;
+    String candidateEndpoint;
+    if (scheduledWake.epoch == (time_t)(-1))
+    {
+        candidateEpoch = nextHour;
+        candidateEndpoint = defaultEndpoint;
+    }
+    else
+    {
+        // Pick the earlier wake time.
+        if (scheduledWake.epoch < nextHour)
+        {
+            candidateEpoch = scheduledWake.epoch;
+            candidateEndpoint = scheduledWake.endpoint;
+        }
+        else
+        {
+            candidateEpoch = nextHour;
+            candidateEndpoint = defaultEndpoint;
+        }
+    }
+
+    // Now check if the candidate falls within the sleep window.
+    struct tm candidateTm;
+    localtime_r(&candidateEpoch, &candidateTm);
+    int candidateMinutes = candidateTm.tm_hour * 60 + candidateTm.tm_min;
+
+    bool candidateInSleepWindow = false;
+    if (!crossesMidnight)
+    {
+        candidateInSleepWindow = (candidateMinutes >= startMinutes && candidateMinutes < stopMinutes);
+    }
+    else
+    {
+        candidateInSleepWindow = (candidateMinutes >= startMinutes || candidateMinutes < stopMinutes);
+    }
+
+    if (candidateInSleepWindow)
+    {
+        // Adjust candidate to the sleepStop time.
+        candidateTm.tm_hour = sleepStop.hour;
+        candidateTm.tm_min = sleepStop.minute;
+        candidateTm.tm_sec = 0;
+        time_t adjustedEpoch = mktime(&candidateTm);
+        if (adjustedEpoch <= candidateEpoch)
+        {
+            // If the sleepStop for the candidate day has already passed, add 1 day.
+            candidateTm.tm_mday += 1;
+            adjustedEpoch = mktime(&candidateTm);
+        }
+        candidateEpoch = adjustedEpoch;
+        candidateEndpoint = defaultEndpoint;
+    }
+
+    result.epoch = candidateEpoch;
+    result.endpoint = candidateEndpoint;
     return result;
 }
 
