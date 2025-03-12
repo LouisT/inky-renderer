@@ -39,20 +39,20 @@ ParsedTime parseTime(const String &timeStrOriginal)
 {
     ParsedTime result = {0, 0, false};
 
-    // Work on a local copy we can modify.
+    // Work on a local copy we can modify
     String timeStr = timeStrOriginal;
     timeStr.trim();
     timeStr.toLowerCase(); // now case insensitive
 
-    // Check if the string contains "am" or "pm".
+    // Check if the string contains "am" or "pm"
     int amIndex = timeStr.indexOf("am");
     int pmIndex = timeStr.indexOf("pm");
 
-    // Determine if input is in 12-hour format.
+    // Determine if input is in 12-hour format
     bool is12HourFormat = (amIndex != -1 || pmIndex != -1);
     bool isAM = false;
 
-    // If it's 12-hour format, remove the period indicator.
+    // If it's 12-hour format, remove the period indicator
     if (is12HourFormat)
     {
         if (amIndex != -1)
@@ -68,33 +68,33 @@ ParsedTime parseTime(const String &timeStrOriginal)
         timeStr.trim(); // remove any extra spaces after removal
     }
 
-    // Find the colon to split hour and minute.
+    // Find the colon to split hour and minute
     int colonIndex = timeStr.indexOf(':');
     if (colonIndex == -1)
     {
-        // Invalid format if ':' is missing.
+        // Invalid format if ':' is missing
         return result;
     }
 
-    // Extract hour and minute substrings.
+    // Extract hour and minute substrings
     String hourStr = timeStr.substring(0, colonIndex);
     String minuteStr = timeStr.substring(colonIndex + 1);
 
-    // Convert to integers.
+    // Convert to integers
     int parsedHour = hourStr.toInt();
     int parsedMinute = minuteStr.toInt();
 
     if (is12HourFormat)
     {
-        // Validate hour in [1..12] and minute in [0..59] for 12-hour format.
+        // Validate hour in [1..12] and minute in [0..59] for 12-hour format
         if (parsedHour < 1 || parsedHour > 12 || parsedMinute < 0 || parsedMinute > 59)
         {
             return result;
         }
 
-        // Convert to 24-hour format.
-        // 12:xx am -> 00:xx; 1-11 am remain unchanged.
-        // 12:xx pm -> 12:xx; 1-11 pm -> add 12.
+        // Convert to 24-hour format
+        // 12:xx am -> 00:xx; 1-11 am remain unchanged
+        // 12:xx pm -> 12:xx; 1-11 pm -> add 12
         if (isAM)
         {
             if (parsedHour == 12)
@@ -112,14 +112,14 @@ ParsedTime parseTime(const String &timeStrOriginal)
     }
     else
     {
-        // Validate for 24-hour clock: hour in [0..23] and minute in [0..59].
+        // Validate for 24-hour clock: hour in [0..23] and minute in [0..59]
         if (parsedHour < 0 || parsedHour > 23 || parsedMinute < 0 || parsedMinute > 59)
         {
             return result;
         }
     }
 
-    // Populate the result structure.
+    // Populate the result structure
     result.hour = parsedHour;
     result.minute = parsedMinute;
     result.valid = true;
@@ -144,7 +144,7 @@ time_t getNextTopOfHour(time_t now)
     return nextHour;
 }
 
-// Retrieves the epoch time of the earliest scheduled wake that is strictlyafter 'now'. Returns (time_t)(-1) if none found.
+// Retrieves the epoch time of the earliest scheduled wake that is strictlyafter 'now'. Returns (time_t)(-1) if none found
 WakeEntry getNextScheduledWake(time_t now, const std::map<String, String> &wakes)
 {
     // Initialize "best" as an invalid entry:
@@ -186,6 +186,7 @@ WakeEntry getNextScheduledWake(time_t now, const std::map<String, String> &wakes
         {
             best.epoch = candidate;
             best.endpoint = entry.second;
+            best.time = entry.first;
         }
     }
 
@@ -202,28 +203,28 @@ WakeEntry calculateNextWake(
 {
     WakeEntry result;
 
-    // Parse sleep window boundaries.
+    // Parse sleep window boundaries
     ParsedTime sleepStart = parseTime(sleepStartStr);
     ParsedTime sleepStop = parseTime(sleepStopStr);
     if (!sleepStart.valid || !sleepStop.valid)
     {
-        // If sleep window times are invalid, fall back to next top of hour.
+        // If sleep window times are invalid, fall back to next top of hour
         result.epoch = getNextTopOfHour(currentEpoch);
         result.endpoint = defaultEndpoint;
         return result;
     }
 
-    // Convert sleep boundaries to minutes since midnight.
+    // Convert sleep boundaries to minutes since midnight
     int startMinutes = sleepStart.hour * 60 + sleepStart.minute;
     int stopMinutes = sleepStop.hour * 60 + sleepStop.minute;
     bool crossesMidnight = (startMinutes > stopMinutes);
 
-    // Convert current time to local time.
+    // Convert current time to local time
     struct tm currentTm;
     localtime_r(&currentEpoch, &currentTm);
     int currentMinutes = currentTm.tm_hour * 60 + currentTm.tm_min;
 
-    // If we are already in the sleep window, schedule wake-up at sleepStop.
+    // If we are already in the sleep window, schedule wake-up at sleepStop
     bool currentlySleeping = false;
     if (!crossesMidnight)
     {
@@ -236,13 +237,14 @@ WakeEntry calculateNextWake(
     }
     if (currentlySleeping)
     {
-        // Build a time structure for today's sleepStop.
+        // Build a time structure for today's sleepStop
         struct tm wakeTm = currentTm;
         wakeTm.tm_hour = sleepStop.hour;
         wakeTm.tm_min = sleepStop.minute;
         wakeTm.tm_sec = 0;
         time_t sleepStopEpoch = mktime(&wakeTm);
-        // If the computed sleepStop has already passed relative to currentEpoch, add 1 day.
+
+        // If the computed sleepStop has already passed relative to currentEpoch, add 1 day
         if (sleepStopEpoch <= currentEpoch)
         {
             wakeTm.tm_mday += 1;
@@ -250,15 +252,17 @@ WakeEntry calculateNextWake(
         }
         result.epoch = sleepStopEpoch;
         result.endpoint = defaultEndpoint;
+        result.time = sleepStopStr;
         return result;
     }
 
-    // Not currently sleeping; choose between the next scheduled wake and next top-of-hour.
+    // Not currently sleeping; choose between the next scheduled wake and next top-of-hour
     time_t nextHour = getNextTopOfHour(currentEpoch);
     WakeEntry scheduledWake = getNextScheduledWake(currentEpoch, wakes);
 
     time_t candidateEpoch;
     String candidateEndpoint;
+    String candidateTime;
     if (scheduledWake.epoch == (time_t)(-1))
     {
         candidateEpoch = nextHour;
@@ -266,11 +270,12 @@ WakeEntry calculateNextWake(
     }
     else
     {
-        // Pick the earlier wake time.
-        if (scheduledWake.epoch < nextHour)
+        // Pick the earlier wake time
+        if (scheduledWake.epoch <= nextHour)
         {
             candidateEpoch = scheduledWake.epoch;
             candidateEndpoint = scheduledWake.endpoint;
+            candidateTime = scheduledWake.time;
         }
         else
         {
@@ -279,7 +284,7 @@ WakeEntry calculateNextWake(
         }
     }
 
-    // Now check if the candidate falls within the sleep window.
+    // Now check if the candidate falls within the sleep window
     struct tm candidateTm;
     localtime_r(&candidateEpoch, &candidateTm);
     int candidateMinutes = candidateTm.tm_hour * 60 + candidateTm.tm_min;
@@ -296,14 +301,14 @@ WakeEntry calculateNextWake(
 
     if (candidateInSleepWindow)
     {
-        // Adjust candidate to the sleepStop time.
+        // Adjust candidate to the sleepStop time
         candidateTm.tm_hour = sleepStop.hour;
         candidateTm.tm_min = sleepStop.minute;
         candidateTm.tm_sec = 0;
         time_t adjustedEpoch = mktime(&candidateTm);
         if (adjustedEpoch <= candidateEpoch)
         {
-            // If the sleepStop for the candidate day has already passed, add 1 day.
+            // If the sleepStop for the candidate day has already passed, add 1 day
             candidateTm.tm_mday += 1;
             adjustedEpoch = mktime(&candidateTm);
         }
@@ -313,11 +318,12 @@ WakeEntry calculateNextWake(
 
     result.epoch = candidateEpoch;
     result.endpoint = candidateEndpoint;
+    result.time = candidateTime;
     return result;
 }
 
 // NTP sync function with timezone and retries
-esp_err_t NTPSync(Inkplate &display, const JsonVariant &ntpConfig)
+esp_err_t NTPSync(Inkplate &display, const char *api, const JsonVariant &ntpConfig)
 {
     if (!ntpConfig.is<JsonObject>())
     {
@@ -329,25 +335,19 @@ esp_err_t NTPSync(Inkplate &display, const JsonVariant &ntpConfig)
     const char *server1 = ntpSettings["server1"] | "time.cloudflare.com";
     const char *server2 = ntpSettings["server2"] | "pool.ntp.org";
     const char *timezone = ntpSettings["timezone"] | "America/Los_Angeles";
+    const char *basepath = ntpSettings["basepath"] | "/api/v0/timezone";
     int retries = ntpSettings["retries"].as<int>() | 3;
+
     // User-specified offsets (in seconds)
     int gmtOffset = ntpSettings["gmtoffset"].as<int>() | 0;
     int daylightOffset = ntpSettings["daylightoffset"].as<int>() | 0;
 
     // Optionally update offsets from a timezone database API
-    JsonObject timezonedb = ntpSettings["timezonedb"];
-    if (timezonedb["enabled"].as<bool>() && timezonedb["api"] && timezonedb["key"])
+    if (timezone[0])
     {
-        const char *api = timezonedb["api"] | "https://api.timezonedb.com/v2.1/get-time-zone";
-
         URLParser::Parser parsed(api);
-        parsed.setParam("format", "json");
-        parsed.setParam("fields", "gmtOffset,dst");
-        parsed.setParam("by", "zone");
-        parsed.setParam("zone", timezone);
-        parsed.setParam("key", timezonedb["key"] | "");
-
-        Logger::logf(Logger::LOG_DEBUG, "Timezone request: %s", parsed.getURL().c_str());
+        parsed.expandPath(basepath, "timezone", URLParser::urlEncode(timezone).c_str());
+        Logger::logf(Logger::LOG_DEBUG, "Timezone request: %s", parsed.getURL(true).c_str());
 
         WiFiClientSecure client;
         client.setInsecure();
@@ -362,14 +362,7 @@ esp_err_t NTPSync(Inkplate &display, const JsonVariant &ntpConfig)
             JsonDocument tzdata;
             deserializeJson(tzdata, https.getString());
             gmtOffset = tzdata["gmtOffset"].as<int>();
-            if (tzdata["dst"].as<int>() == 1)
-            {
-                daylightOffset = 0;
-            }
-            else
-            {
-                daylightOffset = 3600;
-            }
+            daylightOffset = 0; // API returns the GMT offset already adjusted for DST
         }
         else
         {
@@ -393,9 +386,8 @@ esp_err_t NTPSync(Inkplate &display, const JsonVariant &ntpConfig)
         {
             Logger::logf(Logger::LOG_DEBUG, "Time sync successful!");
             delay(100);
-            // mktime() converts the local time (which includes DST if active) into epoch time (UTC)
-            int epoch = mktime(&timeinfo);
-            display.rtcSetEpoch(epoch);
+            time_t utcNow = time(NULL);
+            display.rtcSetEpoch(utcNow);
             if (!display.rtcIsSet())
             {
                 Logger::logf(Logger::LOG_ERROR, "Failed to set RTC!");
@@ -403,7 +395,7 @@ esp_err_t NTPSync(Inkplate &display, const JsonVariant &ntpConfig)
             else
             {
                 TimeSet = true;
-                Logger::logf(Logger::LOG_INFO, "Sync: %s, epoch=%u", fmtEpoch(epoch).c_str(), epoch);
+                Logger::logf(Logger::LOG_INFO, "Sync: %s, epoch=%u", fmtEpoch(utcNow).c_str(), utcNow);
             }
         }
         delay(1000);

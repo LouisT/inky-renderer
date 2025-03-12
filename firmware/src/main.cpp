@@ -50,7 +50,7 @@ const char *deepSleepStartTime = "7:30am";
 
 // Use an RTC variable to see if initial boot has been done
 RTC_DATA_ATTR bool hideSplashScreen = false;
-RTC_DATA_ATTR char lastWakeTime[9] = {0};
+RTC_DATA_ATTR char nextWakeTime[10] = {0};
 
 // Draw battery percentage + render screen
 void draw(const bool render = true, int rotation = display.Adafruit_GFX::getRotation())
@@ -93,8 +93,8 @@ void deepSleep(const bool render = true, const JsonVariant &jsonRenderer = confi
         String defaultEndpoint = jsonRenderer["default"] | "/render/unsplash,wallhaven";
 
         WakeEntry wake = calculateNextWake(time(nullptr), sleepStart, sleepStop, wakesMap, defaultEndpoint);
-        strncpy(lastWakeTime, wake.time.c_str(), sizeof(lastWakeTime) - 1);
-        lastWakeTime[sizeof(lastWakeTime) - 1] = '\0';
+        strncpy(nextWakeTime, wake.time.c_str(), sizeof(nextWakeTime) - 1);
+        nextWakeTime[sizeof(nextWakeTime) - 1] = '\0';
 
         display.rtcSetAlarmEpoch(wake.epoch, RTC_ALARM_MATCH_DHHMMSS);
 
@@ -213,6 +213,15 @@ void setup()
         Logger::logf(Logger::LOG_INFO, "Battery: %sv (est: %d%%)", String(bvolt, 2), battRemaining);
     }
 
+    // Verify API URL
+    const char *api = config["api"].as<const char *>();
+    if (!api || strlen(api) == 0)
+    {
+        Logger::onScreen(Logger::LOG_CRITICAL, true, 2, rotation, "API URL not specified!");
+        deepSleep();
+        return;
+    }
+
     // Connect to WiFi
     if (WifiConnect(config["wifi"]["ssid"], config["wifi"]["pass"], config["wifi"]["retries"]) != ESP_OK)
     {
@@ -223,14 +232,12 @@ void setup()
 
     // Connect MQTT
     if (config["mqtt"]["enabled"] && MqttConnect(config["mqtt"]) != ESP_OK)
-    {
         Logger::log(Logger::LOG_ERROR, "MQTT connection failed.");
-    }
 
     // NTP synchronization
     if (config["ntp"]["enabled"])
     {
-        if (NTPSync(display, config["ntp"]) != ESP_OK)
+        if (NTPSync(display, api, config["ntp"]) != ESP_OK)
             Logger::log(Logger::LOG_ERROR, "NTP sync failed; using fallback timing.");
     }
     else
@@ -287,8 +294,8 @@ void setup()
     // Determine endpoint
     const char *endpoint = (wakeup_reason == ESP_SLEEP_WAKEUP_EXT0 && config["renderer"]["button"].as<const char *>())
                                ? config["renderer"]["button"].as<const char *>() // Render wake buton endpoint
-                               : (strlen(lastWakeTime) > 0
-                                      ? config["renderer"]["wakes"][lastWakeTime].as<const char *>() // Render last wake endpoint
+                               : (strlen(nextWakeTime) > 0
+                                      ? config["renderer"]["wakes"][nextWakeTime].as<const char *>() // Render last wake endpoint
                                       : config["renderer"]["default"].as<const char *>());           // Render default endpoint
     if (endpoint == nullptr)
     {
@@ -298,8 +305,8 @@ void setup()
         return;
     }
 
-    // Display image
-    if (DisplayImage(display, rotation, config["renderer"].as<JsonVariant>(), endpoint) != ESP_OK)
+    // Fetch and render image
+    if (DisplayImage(display, rotation, api, config["renderer"].as<JsonVariant>(), endpoint) != ESP_OK)
     {
         Logger::onScreen(Logger::LOG_ERROR, true, 2, rotation, "Image fetch/render failed!");
     }

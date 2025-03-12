@@ -24,7 +24,7 @@
 #define MQTT_MAX_PACKET_SIZE 1024
 
 const char *displayHeaders[] = {
-    "Content-Type",     // Must be image/bmp
+    "Content-Type",     // Must be image/jpeg
     "Content-Length",   // Use this to determine size
     "X-Image-Source",   // URL of the image, for logging
     "X-Inky-Message-0", // Fow showing a message on the display (top)
@@ -32,11 +32,11 @@ const char *displayHeaders[] = {
     "X-Inky-Message-2", // Fow showing a message on the display (bottom)
 };
 
-// Create both a non-secure and a secure Wi-Fi client.
+// Create both a non-secure and a secure Wi-Fi client
 WiFiClient wifiClient;
 WiFiClientSecure wifiClientSecure;
 
-// Create a PubSubClient without immediately binding to a client.
+// Create a PubSubClient without immediately binding to a client
 PubSubClient mqttClient;
 
 esp_err_t WifiConnect(const char *ssid, const char *pass, int retries)
@@ -52,7 +52,7 @@ esp_err_t WifiConnect(const char *ssid, const char *pass, int retries)
         delay(1000);
     }
 
-    // If still not connected, error with timeout.
+    // If still not connected, error with timeout
     if (WiFi.status() != WL_CONNECTED)
     {
         return ESP_ERR_TIMEOUT;
@@ -93,7 +93,7 @@ esp_err_t MqttConnect(const JsonVariant &mqttConfig)
     if (useTLS)
     {
         // The following line configures the TLS client to accept all certs
-        // (i.e., no verification). This may or may not be what you want.
+        // (i.e., no verification). This may or may not be what you want
         wifiClientSecure.setInsecure();
         mqttClient.setClient(wifiClientSecure);
     }
@@ -120,7 +120,7 @@ esp_err_t MqttConnect(const JsonVariant &mqttConfig)
         delay(500); // short retry delay
     }
 
-    // If still not connected, error with timeout.
+    // If still not connected, error with timeout
     if (!mqttClient.connected())
     {
         return ESP_ERR_TIMEOUT;
@@ -131,7 +131,7 @@ esp_err_t MqttConnect(const JsonVariant &mqttConfig)
 }
 
 // Fetch a remote jpeg image and display it on the screen
-esp_err_t DisplayImage(Inkplate &display, int rotation, const JsonVariant &imageConfig, const char *endpoint)
+esp_err_t DisplayImage(Inkplate &display, int rotation, const char *api, const JsonVariant &imageConfig, const char *endpoint)
 {
     if (!imageConfig.is<JsonObject>())
     {
@@ -139,23 +139,23 @@ esp_err_t DisplayImage(Inkplate &display, int rotation, const JsonVariant &image
         return ESP_ERR_INVALID_ARG;
     }
 
-    const char *baseurl = imageConfig["baseurl"] | "";
+    const char *basepath = imageConfig["basepath"] | "/api/v1";
     const char *userAgent = imageConfig["userAgent"] | USER_AGENT;
     int retries = imageConfig["retries"] | 3;
     int timeout = imageConfig["timeout"] | 30;
 
-    if (!baseurl || strlen(baseurl) == 0)
+    if (!api || strlen(api) == 0)
     {
         Logger::log(Logger::LOG_ERROR, "Invalid URL");
         return ESP_ERR_INVALID_ARG;
     }
 
-    URLParser::Parser parsed(baseurl);
-    parsed.extendPath(endpoint);
+    URLParser::Parser parsed(api);
+    parsed.expandPath(basepath, endpoint);
     parsed.setParam("rotation", String(rotation));
     parsed.setParam("transform", "true");
 
-    Logger::logf(Logger::LOG_DEBUG, "Fetching image from %s", parsed.getURL().c_str());
+    Logger::logf(Logger::LOG_DEBUG, "Fetching image from %s", parsed.getURL(true).c_str());
 
     // Stack-allocated WiFiClientSecure
     WiFiClientSecure client;
@@ -172,10 +172,8 @@ esp_err_t DisplayImage(Inkplate &display, int rotation, const JsonVariant &image
 
         Logger::logf(Logger::LOG_DEBUG, "Image fetch attempt #%d/%d...", attempts, retries);
 
-        WiFiClient stream;
-        stream = https.getStream();
-        stream.setNoDelay(true);
-        stream.setTimeout(15000);
+        https.getStream().setNoDelay(true);
+        https.getStream().setTimeout(15000);
         https.begin(client, parsed.getURL());
         https.setTimeout(timeout * 1000);
 
@@ -221,6 +219,7 @@ esp_err_t DisplayImage(Inkplate &display, int rotation, const JsonVariant &image
                 return ESP_ERR_NO_MEM; // out of memory
             }
 
+            // Get a pointer to the stream
             WiFiClient *stream = https.getStreamPtr();
             if (!stream)
             {
@@ -234,6 +233,7 @@ esp_err_t DisplayImage(Inkplate &display, int rotation, const JsonVariant &image
             unsigned long startMillis = millis();
             const unsigned long timeoutMillis = timeout * 1000;
 
+            // Read the image into the buffer
             while (https.connected() && bytesRead < len)
             {
                 if (millis() - startMillis > timeoutMillis)
@@ -271,6 +271,7 @@ esp_err_t DisplayImage(Inkplate &display, int rotation, const JsonVariant &image
                 continue; // try again
             }
 
+            // Display the raw jpeg image
             if (display.drawJpegFromBuffer(buffer.get(), bytesRead, 0, 0, 1, 0))
             {
                 for (int i = 0; i <= 2; i++)

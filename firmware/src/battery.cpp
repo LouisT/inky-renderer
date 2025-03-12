@@ -1,5 +1,6 @@
 #include "battery.h"
 
+// Lookup table mapping voltage levels to battery percentages
 const float voltageTable[11][2] = {
     {4.2, 100}, // 100% at 4.2V
     {4.1, 90},  // 90% at 4.1V
@@ -14,9 +15,10 @@ const float voltageTable[11][2] = {
     {3.0, 0}    // 0% at 3.0V
 };
 
+// Number of entries in the voltage table
 const int numVoltagePoints = sizeof(voltageTable) / sizeof(voltageTable[0]);
 
-// Binary search implementation to find battery percentage
+// Uses binary search to determine battery percentage based on voltage
 int getBatteryPercentage(float voltage)
 {
     int left = 0;
@@ -26,16 +28,18 @@ int getBatteryPercentage(float voltage)
     {
         int mid = left + (right - left) / 2;
 
+        // Check if voltage falls within the range of this table entry
         if (voltage >= voltageTable[mid][0])
         {
+            // If at the highest entry or the next one is lower, return this percentage
             if (mid == 0 || voltage < voltageTable[mid - 1][0])
                 return static_cast<int>(voltageTable[mid][1]);
 
-            right = mid - 1;
+            right = mid - 1; // Search lower values
         }
         else
         {
-            left = mid + 1;
+            left = mid + 1; // Search higher values
         }
     }
 

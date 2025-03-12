@@ -6,28 +6,32 @@
 #include "images/logo.h"
 #include "time_utils.h"
 
+// Log level names for easier debugging
 static const char *levelNames[] = {
     "CRITICAL", "ERROR", "WARNING", "NOTICE", "INFO", "DEBUG"};
 
 namespace Logger
 {
+    // Pointers to stream, display, and MQTT client
     static Stream *stream = nullptr;
     static Inkplate *display = nullptr;
     static PubSubClient *mqttClient = nullptr;
     static String mqttTopic = "innky/logs";
 
+    // Queue to store log messages before sending to MQTT
     static std::deque<String> logQueue;
 
+    // Enqueues a log message to be sent via MQTT
     void enqueueLog(const String &logMessage)
     {
-        constexpr size_t MAX_LOGS = 15; // TODO: Move to config
-        if (logQueue.size() >= MAX_LOGS)
+        if (logQueue.size() >= 15) // Limit to 15 messages due to RAM constraints
         {
-            logQueue.pop_front(); // More efficient than erase(begin)
+            logQueue.pop_front();
         }
         logQueue.push_back(logMessage);
     }
 
+    // Sends all queued log messages via MQTT
     void flushMQTT()
     {
         if (!mqttClient || !mqttClient->connected())
@@ -44,6 +48,7 @@ namespace Logger
         }
     }
 
+    // Waits until all log messages are sent or timeout occurs
     void waitForFlush(unsigned long timeoutMs)
     {
         if (!mqttClient)
@@ -58,6 +63,7 @@ namespace Logger
         }
     }
 
+    // Cleans up the logger by flushing and disconnecting MQTT
     void cleanup(unsigned long timeoutMs)
     {
         waitForFlush(timeoutMs);
@@ -68,6 +74,7 @@ namespace Logger
         delay(500);
     }
 
+    // Sets the MQTT client and topic for logging
     void setMQTTClient(PubSubClient &client, const char *topic)
     {
         mqttClient = &client;
@@ -75,27 +82,33 @@ namespace Logger
             mqttTopic = topic;
     }
 
+    // Initializes the logger with a stream and an Inkplate display
     void init(Stream &s, Inkplate &d)
     {
         stream = &s;
         display = &d;
     }
 
+    // Logs a message to the stream and optionally MQTT
     void log(LogLevel level, const char *message)
     {
         if (!stream || level > LOG_LEVEL)
             return;
 
+        // Format log level name
         const char *levelName = (level <= LOG_DEBUG) ? levelNames[level] : "UNKNOWN";
         char formattedLevel[10];
         snprintf(formattedLevel, sizeof(formattedLevel), "%-8s", levelName);
 
+        // Generate timestamped log message
         String timestamp = TimeSet ? getLocalTimestamp(time(nullptr)) : "";
         String logEntry = TimeSet ? String("[") + formattedLevel + "] (" + timestamp + "): " + message
                                   : String("[") + formattedLevel + "]: " + message;
 
+        // Print to stream
         stream->println(logEntry);
 
+        // Send to MQTT if enabled
         if (mqttClient)
         {
             enqueueLog(logEntry);
@@ -103,6 +116,7 @@ namespace Logger
         }
     }
 
+    // Logs a formatted message to the stream and MQTT
     void logf(LogLevel level, const char *format, ...)
     {
         if (!stream || level > LOG_LEVEL)
@@ -117,6 +131,7 @@ namespace Logger
         log(level, buffer);
     }
 
+    // Displays a log message on the Inkplate screen
     void onScreen(LogLevel level, bool clear, int pos, int rotation, const char *format, ...)
     {
         if (!display || level > LOG_LEVEL)
@@ -130,12 +145,16 @@ namespace Logger
 
         log(level, buffer);
 
+        // Determine portrait or landscape mode
         const bool isPortrait = (rotation % 2 == 0);
         int w = isPortrait ? E_INK_WIDTH : E_INK_HEIGHT;
-        int h = 30;
+        int h = 30; // Height of the text box
+
+        // Determine Y position based on pos value
         int y = (pos == 0) ? 0 : (pos == 1) ? (isPortrait ? E_INK_HEIGHT / 2 - h / 2 : E_INK_WIDTH / 2 - h / 2)
                                             : (isPortrait ? E_INK_HEIGHT - h : E_INK_WIDTH - h);
 
+        // Clear the display and draw a logo if requested
         if (clear)
         {
             display->clearDisplay();
@@ -144,6 +163,7 @@ namespace Logger
             display->drawBitmap(logoX, logoY, logo_img, logo_w, logo_h, 0);
         }
 
+        // Set font and text properties
         display->setFont();
         display->setTextColor(0, 7);
         display->setTextSize(2);
