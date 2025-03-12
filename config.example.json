@@ -1,49 +1,41 @@
 {
-    "version": "0.0.1",
+    "api": "https://inky:a-password@inky.example.com",
+    "mqtt": {
+        "enabled": true,
+        "pass": "password",
+        "port": 1883,
+        "retries": 3,
+        "server": "mqtt.example.com",
+        "user": "username"
+    },
+    "ntp": {
+        "basepath": "/api/v0",
+        "enabled": true,
+        "retries": 3,
+        "server1": "time.cloudflare.com",
+        "server2": "pool.ntp.org",
+        "timezone": "America/Los_Angeles"
+    },
     "renderer": {
+        "basepath": "/api/v1",
+        "button": "/render/news",
         "cleardisplay": true,
-        "baseurl": "https://inky:a-password@inky.example.com",
-        "timeout": 30,
+        "default": "/image/unsplash,wallhaven",
         "retries": 3,
         "sleepwindow": {
             "start": "10:30pm",
             "stop": "7:30am"
         },
-        "default": "/image/unsplash,wallhaven",
-        "button": "/render/news",
+        "timeout": 30,
         "wakes": {
-            "10:15pm": "/image/wallhaven",
-            "10:20pm": "/image/unsplash",
-            "10:25pm": "/image/wallhaven",
-            "10:30pm": "/image/unsplash",
-            "10:35pm": "/image/wallhaven",
-            "10:40pm": "/image/unsplash",
-            "10:45pm": "/image/wallhaven",
-            "10:50pm": "/image/unsplash"
+            "10:30am": "/render/news?section=us",
+            "5:00pm": "/render/news?section=world"
         }
     },
+    "version": "0.0.1",
     "wifi": {
-        "ssid": "My Network Name",
         "pass": "a-secret-password",
-        "retries": 6
-    },
-    "ntp": {
-        "enabled": true,
-        "server1": "time.cloudflare.com",
-        "server2": "pool.ntp.org",
-        "timezone": "America/Los_Angeles",
-        "timezonedb": {
-            "api": "https://api.timezonedb.com/v2.1/get-time-zone",
-            "key": ""
-        },
-        "retries": 3
-    },
-    "mqtt": {
-        "enabled": true,
-        "server": "mqtt.example.com",
-        "port": 1883,
-        "user": "username",
-        "pass": "password",
-        "retries": 3
+        "retries": 6,
+        "ssid": "My Network Name"
     }
 }

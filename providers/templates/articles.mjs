@@ -1,7 +1,8 @@
-import { html, raw } from 'hono/html'
+import { html, raw } from 'hono/html';
 import QRCode from 'qrcode-svg';
+import images from './_images.mjs';
 
-export default function (articles, mode, footer = false) {
+export default function (articles, mode, provider = false) {
     return html`
         <html lang="en">
             <head>
@@ -94,9 +95,9 @@ export default function (articles, mode, footer = false) {
                         </div>
                         <hr />
                     `)}
-                    ${footer && html`
+                    ${provider && html`
                         <div class="footer-cell">
-                            <img src="${footer}">
+                            <img src="${images[provider]}" alt="${provider}">
                         </div>
                     `}
                 </div>
