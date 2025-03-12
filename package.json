@@ -1,6 +1,6 @@
 {
   "name": "inky-renderer",
-  "version": "0.0.0-beta.2",
+  "version": "0.0.1-beta.2",
   "description": "A remote render service for Inkplate devices via Cloudflare Workers.",
   "main": "index.mjs",
   "repository": "https://github.com/LouisT/inky-renderer",
