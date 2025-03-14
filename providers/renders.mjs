@@ -20,7 +20,7 @@ const providers = {
         ],
         source: async ({ results = [] }, mode) => {
             return articles(
-                results.slice(0, mode.orientation === "landscape" ? 6 : 8),
+                results.slice(0, mode.w > mode.h ? 6 : 8),
                 mode,
                 'nytimes'
             );

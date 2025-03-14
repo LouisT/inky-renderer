@@ -33,7 +33,7 @@ const providers = {
 
             // Set the search params
             url.searchParams.set("client_id", env.UNSPLASH_CLIENT_ID)
-            url.searchParams.set("orientation", mode.orientation);
+            url.searchParams.set("orientation", mode.w > mode.h ? 'landscape' : 'portrait');
 
             // Return the API endpoint
             return url;
@@ -61,7 +61,7 @@ const providers = {
             url.searchParams.set("sorting", "random"); // Get a random image
             url.searchParams.set("categories", "101"); // Image categories (general, anime, people)
             url.searchParams.set("purity", "111"); // Image purity (sfw, sketchy, nsfw)
-            url.searchParams.set("ratios", mode.orientation == 'landscape' ? '1.45x1' : '0.69x1');
+            url.searchParams.set("ratios", `1x${(mode.w / mode.h).toFixed(2)}`);
 
             // Return the API endpoint
             return url;

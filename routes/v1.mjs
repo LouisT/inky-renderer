@@ -5,21 +5,6 @@ import imageProviders from '../providers/images.mjs';
 import renderProviders from '../providers/renders.mjs';
 import { transform, fallback } from '../providers/utils.mjs';
 
-let modes = {
-    0: {
-        "orientation": "landscape",
-        "w": 1200,
-        "h": 825,
-    },
-    1: {
-        "orientation": "portrait",
-        "w": 825,
-        "h": 1200,
-    },
-};
-modes[2] = modes[0];
-modes[3] = modes[1];
-
 // Create versioned endpoint
 const v1 = new Hono().basePath('/api/v1');
 
@@ -39,8 +24,11 @@ v1.use("/*", async (c, next) => {
 
 // Get images from a remote providers
 v1.get('/image/:providers?/:raw?', async (c) => {
-    let mode = modes[c.req.query('rotation') ?? 0] || modes[0],
-        _providers = c.req.param('providers'),
+    let _providers = c.req.param('providers'),
+        _mode = {
+            w: parseInt(c.req.query('w') ?? 1200),
+            h: parseInt(c.req.query('h') ?? 825)
+        },
         _raw = c.req.param('raw') == "raw",
         _provider;
 
@@ -52,13 +40,12 @@ v1.get('/image/:providers?/:raw?', async (c) => {
 
     // If the provider doesn't exist, use Lorem Picsum
     if (!imageProviders[_provider]) {
-        let src = new URL(fallback(mode));
+        let src = new URL(fallback(_mode));
         return new Response((await fetch(src)).body, {
-            ...transform(mode),
+            ...transform(_mode),
             headers: new Headers([
                 ["Content-Type", "image/jpeg"],
-                ["X-Image-Orientation", mode.orientation],
-                ["X-Image-Size", `${mode.w}x${mode.h}`],
+                ["X-Image-Size", `${_mode.w}x${_mode.h}`],
                 ["X-Image-Source", src],
                 ["X-Image-Provider", "Lorem Picsum"],
                 ['X-Invalid-Provider', _provider],
@@ -74,34 +61,36 @@ v1.get('/image/:providers?/:raw?', async (c) => {
 
     //  Fetch the json data from the API endpoint
     // TODO: Validate the response
-    let data = await (await fetch(provider.api(mode, c), { headers })).json();
+    let data = await (await fetch(provider.api(_mode, c), { headers })).json();
 
     if (_raw)
         return c.json(data);
 
     // Build the image URL
-    let img = provider.image(data, mode, c);
+    let img = provider.image(data, _mode, c);
 
     // Fetch the image + return to the client
     return new Response((await fetch(img, {
         headers,
-        ...(provider.transform ? transform(mode) : {}),
+        ...(provider.transform ? transform(_mode) : {}),
     })).body, {
         headers: new Headers([
             ["Content-Type", "image/jpeg"],
-            ["X-Image-Orientation", mode.orientation],
-            ["X-Image-Size", `${mode.w}x${mode.h}`],
+            ["X-Image-Size", `${_mode.w}x${_mode.h}`],
             ["X-Image-Source", img.toLocaleString()],
             ["X-Image-Provider", _provider],
-            ...(provider.headers?.(data, mode, c) ?? []),
+            ...(provider.headers?.(data, _mode, c) ?? []),
         ]),
     });
 });
 
 // Browser renderer
 v1.get('/render/:providers?/:raw?', async (c) => {
-    let mode = modes[c.req.query('rotation') ?? 0] || modes[0],
-        _providers = c.req.param('providers'),
+    let _providers = c.req.param('providers'),
+        _mode = {
+            w: parseInt(c.req.query('w') ?? 1200),
+            h: parseInt(c.req.query('h') ?? 825)
+        },
         _raw = c.req.param('raw') == "raw",
         _provider;
 
@@ -113,13 +102,12 @@ v1.get('/render/:providers?/:raw?', async (c) => {
 
     // If the provider doesn't exist, use Lorem Picsum
     if (!renderProviders[_provider]) {
-        let src = new URL(fallback(mode));
+        let src = new URL(fallback(_mode));
         return new Response((await fetch(src)).body, {
-            ...transform(mode),
+            ...transform(_mode),
             headers: new Headers([
                 ["Content-Type", "image/jpeg"],
-                ["X-Image-Orientation", mode.orientation],
-                ["X-Image-Size", `${mode.w}x${mode.h}`],
+                ["X-Image-Size", `${_mode.w}x${_mode.h}`],
                 ["X-Image-Source", src],
                 ["X-Image-Provider", "Lorem Picsum"],
                 ['X-Invalid-Provider', _provider],
@@ -136,18 +124,18 @@ v1.get('/render/:providers?/:raw?', async (c) => {
 
     //  Fetch the json data from the API endpoint
     // TODO: Validate the response
-    let data = await (await fetch(provider.api(mode, c), { headers })).json();
+    let data = await (await fetch(provider.api(_mode, c), { headers })).json();
 
     if (_raw)
-        return c.html(await provider.source(data, mode, c));
+        return c.html(await provider.source(data, _mode, c));
 
     // Create the browser instance
     const browser = await puppeteer.launch(c.env.BROWSER);
     const page = await browser.newPage();
-    await page.setViewport({ width: mode.w, height: mode.h });
+    await page.setViewport({ width: _mode.w, height: _mode.h });
 
     // Set the page content
-    await page.setContent(await provider.source(data, mode, c));
+    await page.setContent(await provider.source(data, _mode, c));
 
     // Get the image element
     let $target = await page.$('.inky-content');
@@ -161,10 +149,9 @@ v1.get('/render/:providers?/:raw?', async (c) => {
     })), {
         headers: new Headers([
             ["Content-Type", "image/jpeg"],
-            ["X-Image-Orientation", mode.orientation],
-            ["X-Image-Size", `${mode.w}x${mode.h}`],
+            ["X-Image-Size", `${_mode.w}x${_mode.h}`],
             ["X-Image-Provider", _provider],
-            ...(provider.headers?.(data, mode, c.env) ?? []),
+            ...(provider.headers?.(data, _mode, c.env) ?? []),
         ]),
     });
 });

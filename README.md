@@ -3,12 +3,17 @@ Firmware + remote rendering service for Inkplate devices via Cloudflare Workers.
 
 ### This is a WIP!
 
-### Image Services
-1) [Unsplash](https://unsplash.com/developers)  (unsplash)
-2) [Wallhaven](https://wallhaven.cc/help/api) (wallhaven)
+### Image Services (/api/v1/image)
+1) [Unsplash](https://unsplash.com/developers)  (/unsplash)
+2) [Wallhaven](https://wallhaven.cc/help/api) (/wallhaven)
+    * Can sometimes contain NSFW content.
+    * TODO: Add `purity`, `categories` and `q` (possibly others?) as query params.
+3) [NASA APOD](https://api.nasa.gov/) (/nasa)
 
-### Render Services
-1) [NY Times](https://developer.nytimes.com/) (news, nytimes)
+### Render Services (/api/v1/render)
+1) [NY Times](https://developer.nytimes.com/) (/news, /nytimes)
+    * Supports custom section query: `/api/v1/render/news?section=us` (default: world)
+    * See [docs](https://developer.nytimes.com/docs/top-stories-product/1/routes/%7Bsection%7D.json/get) for more information.
 
 ### Supported Devices
 1) [Inkplate 10](https://soldered.com/product/inkplate-10-9-7-e-paper-board-copy/)
