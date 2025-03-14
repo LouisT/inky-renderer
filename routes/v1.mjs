@@ -55,19 +55,19 @@ v1.get('/image/:providers?/:raw?', async (c) => {
 
     let provider = imageProviders[_provider],
         headers = new Headers([
-            ... (provider.apiHeaders?.() ?? []),
+            ...(await provider.apiHeaders?.() ?? []),
             ['User-Agent', c.req.header('User-Agent') ?? "Inky Renderer/v0.0.1-dev.1"],
         ]);
 
     //  Fetch the json data from the API endpoint
     // TODO: Validate the response
-    let data = await (await fetch(provider.api(_mode, c), { headers })).json();
+    let data = await (await fetch(await provider.api(_mode, c), { headers })).json();
 
     if (_raw)
         return c.json(data);
 
     // Build the image URL
-    let img = provider.image(data, _mode, c);
+    let img = await provider.image(data, _mode, c);
 
     // Fetch the image + return to the client
     return new Response((await fetch(img, {
@@ -79,7 +79,7 @@ v1.get('/image/:providers?/:raw?', async (c) => {
             ["X-Image-Size", `${_mode.w}x${_mode.h}`],
             ["X-Image-Source", img.toLocaleString()],
             ["X-Image-Provider", _provider],
-            ...(provider.headers?.(data, _mode, c) ?? []),
+            ...(await provider.headers?.(data, _mode, c) ?? []),
         ]),
     });
 });
@@ -118,7 +118,7 @@ v1.get('/render/:providers?/:raw?', async (c) => {
     // Get the provider
     let provider = renderProviders[_provider],
         headers = new Headers([
-            ... (provider.apiHeaders?.() ?? []),
+            ... (await provider.apiHeaders?.() ?? []),
             ['User-Agent', c.req.header('User-Agent') ?? "Inky Renderer/v0.0.1-dev.1"],
         ]);
 
@@ -151,7 +151,7 @@ v1.get('/render/:providers?/:raw?', async (c) => {
             ["Content-Type", "image/jpeg"],
             ["X-Image-Size", `${_mode.w}x${_mode.h}`],
             ["X-Image-Provider", _provider],
-            ...(provider.headers?.(data, _mode, c.env) ?? []),
+            ...(await provider.headers?.(data, _mode, c.env) ?? []),
         ]),
     });
 });

@@ -9,6 +9,7 @@ Firmware + remote rendering service for Inkplate devices via Cloudflare Workers.
     * Can sometimes contain NSFW content.
     * TODO: Add `purity`, `categories` and `q` (possibly others?) as query params.
 3) [NASA APOD](https://api.nasa.gov/) (/nasa)
+4) [xkcd](https://xkcd.com/) (/xkcd)
 
 ### Render Services (/api/v1/render)
 1) [NY Times](https://developer.nytimes.com/) (/news, /nytimes)

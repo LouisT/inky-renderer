@@ -2,7 +2,7 @@ import { fallback, imgix } from "./utils.mjs";
 
 const providers = {
     "nasa": {
-        api: (mode, { env }) => {
+        api: async (mode, { env }) => {
             // Parse the API endpoint
             let url = new URL("https://api.nasa.gov/planetary/apod");
 
@@ -12,22 +12,50 @@ const providers = {
             // Return the API endpoint
             return url;
         },
-        apiHeaders: () => [
+        apiHeaders: async () => [
             ["Accept", "application/json"],
         ],
-        headers: (data, mode) => (data?.url ? [
+        headers: async (data, mode) => (data?.url ? [
             ["X-Inky-Message-0", `"${data?.title ?? '???'}"`],
             ["X-Inky-Message-2", `APOD by NASA (${data?.date ?? '???'})`],
         ] : [
             ["X-Inky-Message-2", "Invalid response from NASA; using Lorem Picsum."],
         ]),
-        image: (data, mode) => {
+        image: async (data, mode) => {
             return new URL(data?.hdurl ?? data?.url ?? fallback(mode));
         },
         transform: true,
     },
+    "xkcd": {
+        api: async (mode, { env }) => {
+            // A "hack" to get a random image from xkcd
+            let max = 3062;
+            try {
+                max = (await (await fetch("https://xkcd.com/info.0.json")).json()).num ?? 1000;
+            } catch { }
+
+            // Build the API endpoint
+            let url = new URL(`https://xkcd.com/${Math.floor(Math.random() * max) + 1}/info.0.json`);
+
+            // Return the API endpoint
+            return url;
+        },
+        apiHeaders: async () => [
+            ["Accept", "application/json"],
+        ],
+        headers: async (data, mode) => (data?.img ? [
+            ["X-Inky-Message-0", `"${data?.title ?? '???'}"`],
+            ["X-Inky-Message-2", data?.alt ?? '???'],
+        ] : [
+            ["X-Inky-Message-2", "Invalid response from xkcd; using Lorem Picsum."],
+        ]),
+        image: async (data, mode) => {
+            return new URL(data?.img ?? fallback(mode));
+        },
+        transform: true,
+    },
     "unsplash": {
-        api: (mode, { env }) => {
+        api: async (mode, { env }) => {
             // Parse the API endpoint
             let url = new URL("https://api.unsplash.com/photos/random");
 
@@ -38,21 +66,21 @@ const providers = {
             // Return the API endpoint
             return url;
         },
-        apiHeaders: () => [
+        apiHeaders: async () => [
             ["Accept", "application/json"],
         ],
-        headers: (data, mode) => (data?.urls?.raw ? [
+        headers: async (data, mode) => (data?.urls?.raw ? [
             ["X-Inky-Message-0", `"${data?.alt_description ?? '???'}"`],
             ["X-Inky-Message-2", `by ${data?.user?.name ?? '???'} (@${data?.user?.username ?? '???'}) on Unsplash (${data?.likes ?? 0} likes)`],
         ] : [
             ["X-Inky-Message-2", "Invalid response from Unsplash; using Lorem Picsum."],
         ]),
-        image: (data, mode) => {
+        image: async (data, mode) => {
             return imgix(new URL(data?.urls?.raw ?? fallback(mode)), mode);
         }
     },
     "wallhaven": {
-        api: (mode, { env }) => {
+        api: async (mode, { env }) => {
             // Parse the API endpoint
             let url = new URL("https://wallhaven.cc/api/v1/search");
 
@@ -66,15 +94,15 @@ const providers = {
             // Return the API endpoint
             return url;
         },
-        apiHeaders: () => [
+        apiHeaders: async () => [
             ["Accept", "application/json"],
         ],
-        headers: ({ data = [] }, mode) => (data?.[0]?.path ? [
+        headers: async ({ data = [] }, mode) => (data?.[0]?.path ? [
             ["X-Inky-Message-2", `${data?.[0]?.id ?? '???'} on Wallhaven (${data?.[0]?.views ?? 0} views, ${data?.[0]?.favorites ?? 0} favorites)`],
         ] : [
             ["X-Inky-Message-2", "Invalid response from Wallhaven; using Lorem Picsum."],
         ]),
-        image: ({ data = [] }, mode, { env }) => {
+        image: async ({ data = [] }, mode, { env }) => {
             let imgurl = data?.[0]?.path ?? fallback(mode);
             if (env.WALLHAVEN_IMGIX_URL) {
                 imgurl = imgurl.replace("https://w.wallhaven.cc/full", env.WALLHAVEN_IMGIX_URL);

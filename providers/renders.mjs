@@ -2,7 +2,7 @@ import articles from "./templates/articles.mjs";
 
 const providers = {
     "nytimes": {
-        api: (mode, c) => {
+        api: async (mode, c) => {
             // Get the section
             let section = c.req.query('section') || 'world';
 
@@ -15,7 +15,7 @@ const providers = {
             // Return the API endpoint
             return url;
         },
-        apiHeaders: () => [
+        apiHeaders: async () => [
             ["Accept", "application/json"],
         ],
         source: async ({ results = [] }, mode) => {
