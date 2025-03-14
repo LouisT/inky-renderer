@@ -5,9 +5,6 @@
 #include <map>
 #include "time.h"
 
-// Global variable to track if NTP sync was successful
-extern bool TimeSet;
-
 // Define a structure to hold parsed time values
 struct ParsedTime
 {
@@ -33,8 +30,14 @@ String fmtEpoch(time_t epoch);
 // Parse a time string (e.g. "10:30am") into a ParsedTime structure
 ParsedTime parseTime(const String &timeStr);
 
-//Gets the epoch time of the next top of the hour
-time_t getNextTopOfHour(time_t now);
+// Parse duration string into seconds, returns -1 on error
+// Example: 1d2h3m4s -> 86400 + 7200 + 180 + 4 = 90164
+int parseDuration(const String &durationStr);
+
+// Return the epoch time at the *next* boundary of 'intervalStr' from the current local day.
+// E.g., if interval=90 minutes, the boundaries each day are 00:00, 01:30, 03:00, 04:30, ...
+// If the parsed duration is invalid, we fall back to once‐an‐hour “top of the hour.”
+time_t getNextIntervalTime(time_t now, const String &intervalStr = "");
 
 // Find the earliest scheduled wake time that is strictly after the given time
 WakeEntry getNextScheduledWake(time_t now, const std::map<String, String> &wakes);
@@ -45,7 +48,8 @@ WakeEntry calculateNextWake(
     const String &sleepStartStr,
     const String &sleepStopStr,
     const std::map<String, String> &wakes,
-    const String &defaultEndpoint);
+    const String &defaultEndpoint,
+    const String &intervalStr = "");
 
 // Synchronizes the system time using NTP
 esp_err_t NTPSync(Inkplate &display, const char *api, const JsonVariant &ntpConfig);

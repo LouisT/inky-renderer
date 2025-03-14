@@ -88,11 +88,12 @@ void deepSleep(const bool render = true, const JsonVariant &jsonRenderer = confi
             wakesMap[kv.key().c_str()] = kv.value().as<const char *>();
         }
 
-        String sleepStart = jsonRenderer["sleepwindow"]["start"] | "10:30pm";
-        String sleepStop = jsonRenderer["sleepwindow"]["stop"] | "7:30am";
+        String sleepStart = jsonRenderer["sleepwindow"]["start"] | "";
+        String sleepStop = jsonRenderer["sleepwindow"]["stop"] | "";
         String defaultEndpoint = jsonRenderer["default"] | "/render/unsplash,wallhaven";
+        String intervalStr = jsonRenderer["wake-interval"] | "";
 
-        WakeEntry wake = calculateNextWake(time(nullptr), sleepStart, sleepStop, wakesMap, defaultEndpoint);
+        WakeEntry wake = calculateNextWake(display.rtcGetEpoch(), sleepStart, sleepStop, wakesMap, defaultEndpoint, intervalStr);
         strncpy(nextWakeTime, wake.time.c_str(), sizeof(nextWakeTime) - 1);
         nextWakeTime[sizeof(nextWakeTime) - 1] = '\0';
 
@@ -121,6 +122,11 @@ void setup()
     pinMode(39, INPUT_PULLUP);
     Serial.begin(115200);
     display.begin();
+
+#if defined(RTC_OFFSET_MODE) && defined(RTC_OFFSET_VALUE)
+    display.rtcSetClockOffset(RTC_OFFSET_MODE, RTC_OFFSET_VALUE);
+#endif
+
     display.rtcGetRtcData();
     display.rtcClearAlarmFlag();
     display.setRotation(ROTATION);
@@ -170,6 +176,10 @@ void setup()
     {
         Logger::setMQTTClient(mqttClient, config["mqtt"]["topic"] | "inky-renderer");
     }
+
+#if defined(RTC_OFFSET_MODE) && defined(RTC_OFFSET_VALUE)
+    Logger::logf(Logger::LOG_INFO, "RTC offset mode: %d, value: %d", RTC_OFFSET_MODE, RTC_OFFSET_VALUE);
+#endif
 
     // Print wakeup reason
     esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
@@ -232,7 +242,13 @@ void setup()
 
     // Connect MQTT
     if (config["mqtt"]["enabled"] && MqttConnect(config["mqtt"]) != ESP_OK)
+    {
         Logger::log(Logger::LOG_ERROR, "MQTT connection failed.");
+    }
+    else
+    {
+        Logger::log(Logger::LOG_INFO, "MQTT connected.");
+    }
 
     // NTP synchronization
     if (config["ntp"]["enabled"])

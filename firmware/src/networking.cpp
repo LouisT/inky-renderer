@@ -141,6 +141,7 @@ esp_err_t DisplayImage(Inkplate &display, int rotation, const char *api, const J
 
     const char *basepath = imageConfig["basepath"] | "/api/v1";
     const char *userAgent = imageConfig["userAgent"] | USER_AGENT;
+    const bool isPortrait = (rotation % 2 == 0);
     int retries = imageConfig["retries"] | 3;
     int timeout = imageConfig["timeout"] | 30;
 
@@ -154,6 +155,10 @@ esp_err_t DisplayImage(Inkplate &display, int rotation, const char *api, const J
     parsed.expandPath(basepath, endpoint);
     parsed.setParam("rotation", String(rotation));
     parsed.setParam("transform", "true");
+
+    // Use rotation to pass the width and height of the board to support different aspect ratios
+    parsed.setParam("w", String(isPortrait ? E_INK_WIDTH : E_INK_HEIGHT));
+    parsed.setParam("h", String(isPortrait ? E_INK_HEIGHT : E_INK_WIDTH));
 
     Logger::logf(Logger::LOG_DEBUG, "Fetching image from %s", parsed.getURL(true).c_str());
 
@@ -270,6 +275,9 @@ esp_err_t DisplayImage(Inkplate &display, int rotation, const char *api, const J
                 Logger::log(Logger::LOG_ERROR, "Incomplete image download");
                 continue; // try again
             }
+
+            // Clear the screen
+            display.clearDisplay();
 
             // Display the raw jpeg image
             if (display.drawJpegFromBuffer(buffer.get(), bytesRead, 0, 0, 1, 0))

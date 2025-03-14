@@ -101,8 +101,8 @@ namespace Logger
         snprintf(formattedLevel, sizeof(formattedLevel), "%-8s", levelName);
 
         // Generate timestamped log message
-        String timestamp = TimeSet ? getLocalTimestamp(time(nullptr)) : "";
-        String logEntry = TimeSet ? String("[") + formattedLevel + "] (" + timestamp + "): " + message
+        String timestamp = display->rtcIsSet() ? getLocalTimestamp(display->rtcGetEpoch()) : "";
+        String logEntry = timestamp.length() > 0 ? String("[") + formattedLevel + "] (" + timestamp + "): " + message
                                   : String("[") + formattedLevel + "]: " + message;
 
         // Print to stream

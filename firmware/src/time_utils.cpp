@@ -9,9 +9,6 @@
 #include "sys/time.h"
 #include "urlparser.h"
 
-// Global variable to track if NTP sync was successful
-bool TimeSet = false;
-
 // Function to get the local time as a string (e.g., "2025-01-01 12:00:00 AM")
 String getLocalTimestamp(time_t epochFallback)
 {
@@ -127,21 +124,128 @@ ParsedTime parseTime(const String &timeStrOriginal)
     return result;
 }
 
-// Returns the epoch time of the next top of the hour
-time_t getNextTopOfHour(time_t now)
+// Parse duration string into seconds, returns -1 on error
+// Example: 1d2h3m4s -> 86400 + 7200 + 180 + 4 = 93784
+//          1w2d3h4m5s -> 604800 + 172800 + 10800 + 240 + 5 = 788645
+int parseDuration(const String &durationStr)
 {
-    struct tm timeinfo;
-    localtime_r(&now, &timeinfo);
-    // If it's 10:00 exactly, we want 11:00, not 10:00 again
-    timeinfo.tm_min = 0;
-    timeinfo.tm_sec = 0;
-    time_t nextHour = mktime(&timeinfo);
-    if (nextHour <= now)
+    // Pointer to the raw char array
+    const char *p = durationStr.c_str();
+    long totalSeconds = 0;
+
+    while (*p)
     {
-        // Bump by one hour
-        nextHour += 3600;
+        // Skip spaces
+        while (*p == ' ')
+        {
+            p++;
+        }
+
+        // Parse numeric value
+        long value = 0;
+        bool foundDigit = false;
+        while (isdigit(*p))
+        {
+            foundDigit = true;
+            value = value * 10 + (*p - '0');
+            p++;
+        }
+
+        // Must have digits followed by a unit token
+        if (!foundDigit || !*p)
+        {
+            return -1;
+        }
+
+        // Normalize token to lowercase
+        char token = *p;
+        if (token >= 'A' && token <= 'Z')
+        {
+            token += ('a' - 'A');
+        }
+        p++; // Advance past the token
+
+        // Determine multiplier
+        long multiplier;
+        switch (token)
+        {
+        case 'w':
+            multiplier = 7L * 24L * 3600L;
+            break; // weeks
+        case 'd':
+            multiplier = 24L * 3600L;
+            break; // days
+        case 'h':
+            multiplier = 3600L;
+            break; // hours
+        case 'm':
+            multiplier = 60L;
+            break; // minutes
+        case 's':
+            multiplier = 1L;
+            break; // seconds
+        default:
+            return -1;
+        }
+
+        // Check for overflow in (value * multiplier)
+        // If value > INT_MAX / multiplier, it would overflow
+        if (value > (2147483647L / multiplier))
+        {
+            return -1;
+        }
+
+        // Accumulate
+        long partial = value * multiplier;
+        // Check total overflow
+        if (totalSeconds > 2147483647L - partial)
+        {
+            return -1;
+        }
+        totalSeconds += partial;
+
+        // Skip non-digit junk (like commas, extra spaces, etc.)
+        while (*p && !isdigit(*p) && *p != ' ')
+        {
+            p++;
+        }
     }
-    return nextHour;
+
+    // Require a positive total
+    if (totalSeconds <= 0)
+    {
+        return -1;
+    }
+
+    return (int)totalSeconds;
+}
+
+// If intervalStr is empty or invalid, return the next top-of-hour epoch time
+// Otherwise, return now + the parsed interval duration in seconds from now
+time_t getNextIntervalTime(time_t now, const String &intervalStr)
+{
+    // Try to parse the interval string into total seconds
+    int totalSeconds = parseDuration(intervalStr);
+
+    // If the string is empty or invalid, fallback to the NEXT top-of-hour
+    if (totalSeconds <= 0)
+    {
+        struct tm timeinfo;
+        localtime_r(&now, &timeinfo);
+
+        // Set minutes/seconds to 0, so this is the top of the *current* hour
+        timeinfo.tm_min = 0;
+        timeinfo.tm_sec = 0;
+        time_t fallbackTime = mktime(&timeinfo);
+
+        // If that ended up being <= now, it means we were already past
+        // the top of this hour, so move forward one hour
+        return fallbackTime += (fallbackTime <= now) ? 3600 : 0;
+    }
+
+    // Otherwise, return now + the parsed interval
+    // e.g., if it's 2:30pm now and interval is 1h45m => 2:30 + 1h45m = 4:15pm
+    return now + totalSeconds;
 }
 
 // Retrieves the epoch time of the earliest scheduled wake that is strictlyafter 'now'. Returns (time_t)(-1) if none found
@@ -196,23 +300,54 @@ WakeEntry getNextScheduledWake(time_t now, const std::map<String, String> &wakes
 // Calculates the next wake time based on the sleep window and wake schedule
 WakeEntry calculateNextWake(
     time_t currentEpoch,
-    const String &sleepStartStr,
-    const String &sleepStopStr,
+    const String &sleepStartStr, // e.g. "11:30pm" or 22:30"
+    const String &sleepStopStr,  // e.g. "7:30am" or "07:30"
     const std::map<String, String> &wakes,
-    const String &defaultEndpoint)
+    const String &defaultEndpoint,
+    const String &intervalStr // e.g. "1h30m", "45m", "2h15m30s", etc
+)
 {
-    WakeEntry result;
+    bool hasSleepWindow = true;
 
-    // Parse sleep window boundaries
-    ParsedTime sleepStart = parseTime(sleepStartStr);
-    ParsedTime sleepStop = parseTime(sleepStopStr);
-    if (!sleepStart.valid || !sleepStop.valid)
+    // If either sleep string is empty, we have no window
+    if (sleepStartStr.isEmpty() || sleepStopStr.isEmpty())
     {
-        // If sleep window times are invalid, fall back to next top of hour
-        result.epoch = getNextTopOfHour(currentEpoch);
-        result.endpoint = defaultEndpoint;
-        return result;
+        hasSleepWindow = false;
     }
+
+    ParsedTime sleepStart, sleepStop;
+    if (hasSleepWindow)
+    {
+        sleepStart = parseTime(sleepStartStr);
+        sleepStop = parseTime(sleepStopStr);
+
+        // If either parse fails, skip the sleep window logic
+        if (!sleepStart.valid || !sleepStop.valid)
+        {
+            hasSleepWindow = false;
+        }
+    }
+
+    // If no sleep window, just pick the next scheduled wake or the next interval
+    if (!hasSleepWindow)
+    {
+        // Simply pick the earlier of the next scheduled wake or next interval boundary
+        time_t nextInterval = getNextIntervalTime(currentEpoch, intervalStr);
+        WakeEntry scheduledWake = getNextScheduledWake(currentEpoch, wakes);
+
+        // If there is a scheduled wake, use it
+        if (scheduledWake.epoch != (time_t)(-1) && scheduledWake.epoch <= nextInterval)
+        {
+            return scheduledWake;
+        }
+        else
+        {
+            return WakeEntry{nextInterval, defaultEndpoint, ""};
+        }
+    }
+
+    // Otherwise, we have a sleep window, so calculate the next wake
+    WakeEntry result;
 
     // Convert sleep boundaries to minutes since midnight
     int startMinutes = sleepStart.hour * 60 + sleepStart.minute;
@@ -257,7 +392,7 @@ WakeEntry calculateNextWake(
     }
 
     // Not currently sleeping; choose between the next scheduled wake and next top-of-hour
-    time_t nextHour = getNextTopOfHour(currentEpoch);
+    time_t nextInterval = getNextIntervalTime(currentEpoch, intervalStr);
     WakeEntry scheduledWake = getNextScheduledWake(currentEpoch, wakes);
 
     time_t candidateEpoch;
@@ -265,13 +400,13 @@ WakeEntry calculateNextWake(
     String candidateTime;
     if (scheduledWake.epoch == (time_t)(-1))
     {
-        candidateEpoch = nextHour;
+        candidateEpoch = nextInterval;
         candidateEndpoint = defaultEndpoint;
     }
     else
     {
         // Pick the earlier wake time
-        if (scheduledWake.epoch <= nextHour)
+        if (scheduledWake.epoch <= nextInterval)
         {
             candidateEpoch = scheduledWake.epoch;
             candidateEndpoint = scheduledWake.endpoint;
@@ -279,7 +414,7 @@ WakeEntry calculateNextWake(
         }
         else
         {
-            candidateEpoch = nextHour;
+            candidateEpoch = nextInterval;
             candidateEndpoint = defaultEndpoint;
         }
     }
@@ -378,7 +513,7 @@ esp_err_t NTPSync(Inkplate &display, const char *api, const JsonVariant &ntpConf
     int attempts = 0;
     display.rtcReset();
 
-    while (attempts++ < retries && !TimeSet)
+    while (attempts++ < retries && !display.rtcIsSet())
     {
         Logger::logf(Logger::LOG_DEBUG, "Time sync attempt #%d...", attempts);
         struct tm timeinfo;
@@ -394,12 +529,11 @@ esp_err_t NTPSync(Inkplate &display, const char *api, const JsonVariant &ntpConf
             }
             else
             {
-                TimeSet = true;
                 Logger::logf(Logger::LOG_INFO, "Sync: %s, epoch=%u", fmtEpoch(utcNow).c_str(), utcNow);
             }
         }
         delay(1000);
     }
 
-    return TimeSet ? ESP_OK : ESP_ERR_TIMEOUT;
+    return display.rtcIsSet() ? ESP_OK : ESP_ERR_TIMEOUT;
 }
