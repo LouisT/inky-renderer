@@ -27,7 +27,8 @@ v1.get('/image/:providers?/:raw?', async (c) => {
     let _providers = c.req.param('providers'),
         _mode = {
             w: parseInt(c.req.query('w') ?? 1200),
-            h: parseInt(c.req.query('h') ?? 825)
+            h: parseInt(c.req.query('h') ?? 825),
+            mbh: parseInt(c.req.query('mbh') ?? 0),
         },
         _raw = c.req.param('raw') == "raw",
         _provider;
@@ -59,6 +60,10 @@ v1.get('/image/:providers?/:raw?', async (c) => {
             ['User-Agent', c.req.header('User-Agent') ?? "Inky Renderer/v0.0.1-dev.1"],
         ]);
 
+    // Adjust the height based on mbh + offset
+    if (_mode.mbh > 0)
+        _mode.h = _mode.h - (_mode.mbh * provider.mbhOffset);
+
     //  Fetch the json data from the API endpoint
     // TODO: Validate the response
     let data = await (await fetch(await provider.api(_mode, c), { headers })).json();
@@ -69,17 +74,20 @@ v1.get('/image/:providers?/:raw?', async (c) => {
     // Build the image URL
     let img = await provider.image(data, _mode, c);
 
+    // Get headers
+    let _headers = (await provider.headers?.(data, _mode, c) ?? []);
+
     // Fetch the image + return to the client
     return new Response((await fetch(img, {
         headers,
-        ...(provider.transform ? transform(_mode) : {}),
+        ...transform(_mode, _headers),
     })).body, {
         headers: new Headers([
             ["Content-Type", "image/jpeg"],
             ["X-Image-Size", `${_mode.w}x${_mode.h}`],
             ["X-Image-Source", img.toLocaleString()],
             ["X-Image-Provider", _provider],
-            ...(await provider.headers?.(data, _mode, c) ?? []),
+            ..._headers,
         ]),
     });
 });
@@ -89,7 +97,7 @@ v1.get('/render/:providers?/:raw?', async (c) => {
     let _providers = c.req.param('providers'),
         _mode = {
             w: parseInt(c.req.query('w') ?? 1200),
-            h: parseInt(c.req.query('h') ?? 825)
+            h: parseInt(c.req.query('h') ?? 825),
         },
         _raw = c.req.param('raw') == "raw",
         _provider;
@@ -124,7 +132,7 @@ v1.get('/render/:providers?/:raw?', async (c) => {
 
     //  Fetch the json data from the API endpoint
     // TODO: Validate the response
-    let data = await (await fetch(provider.api(_mode, c), { headers })).json();
+    let data = await (await fetch(await provider.api(_mode, c), { headers })).json();
 
     if (_raw)
         return c.html(await provider.source(data, _mode, c));

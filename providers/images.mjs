@@ -2,6 +2,7 @@ import { fallback, imgix } from "./utils.mjs";
 
 const providers = {
     "nasa": {
+        mbhOffset: 2,
         api: async (mode, { env }) => {
             // Parse the API endpoint
             let url = new URL("https://api.nasa.gov/planetary/apod");
@@ -19,14 +20,15 @@ const providers = {
             ["X-Inky-Message-0", `"${data?.title ?? '???'}"`],
             ["X-Inky-Message-2", `APOD by NASA (${data?.date ?? '???'})`],
         ] : [
+            ["X-Inky-Message-0", "Please check your renderer settings!"],
             ["X-Inky-Message-2", "Invalid response from NASA; using Lorem Picsum."],
         ]),
         image: async (data, mode) => {
             return new URL(data?.hdurl ?? data?.url ?? fallback(mode));
         },
-        transform: true,
     },
     "xkcd": {
+        mbhOffset: 2,
         api: async (mode, { env }) => {
             // A "hack" to get a random image from xkcd
             let max = 3062;
@@ -47,14 +49,15 @@ const providers = {
             ["X-Inky-Message-0", `"${data?.title ?? '???'}"`],
             ["X-Inky-Message-2", data?.alt ?? '???'],
         ] : [
+            ["X-Inky-Message-0", "Please check your renderer settings!"],
             ["X-Inky-Message-2", "Invalid response from xkcd; using Lorem Picsum."],
         ]),
         image: async (data, mode) => {
             return new URL(data?.img ?? fallback(mode));
         },
-        transform: true,
     },
     "unsplash": {
+        mbhOffset: 2,
         api: async (mode, { env }) => {
             // Parse the API endpoint
             let url = new URL("https://api.unsplash.com/photos/random");
@@ -73,6 +76,7 @@ const providers = {
             ["X-Inky-Message-0", `"${data?.alt_description ?? '???'}"`],
             ["X-Inky-Message-2", `by ${data?.user?.name ?? '???'} (@${data?.user?.username ?? '???'}) on Unsplash (${data?.likes ?? 0} likes)`],
         ] : [
+            ["X-Inky-Message-0", "Please check your renderer settings!"],
             ["X-Inky-Message-2", "Invalid response from Unsplash; using Lorem Picsum."],
         ]),
         image: async (data, mode) => {
@@ -80,6 +84,7 @@ const providers = {
         }
     },
     "wallhaven": {
+        mbhOffset: 1,
         api: async (mode, { env }) => {
             // Parse the API endpoint
             let url = new URL("https://wallhaven.cc/api/v1/search");
@@ -89,7 +94,7 @@ const providers = {
             url.searchParams.set("sorting", "random"); // Get a random image
             url.searchParams.set("categories", "101"); // Image categories (general, anime, people)
             url.searchParams.set("purity", "111"); // Image purity (sfw, sketchy, nsfw)
-            url.searchParams.set("ratios", `1x${(mode.w / mode.h).toFixed(2)}`);
+            url.searchParams.set("ratios", `${(mode.w / mode.h).toFixed(2)}x1`);
 
             // Return the API endpoint
             return url;
@@ -103,11 +108,7 @@ const providers = {
             ["X-Inky-Message-2", "Invalid response from Wallhaven; using Lorem Picsum."],
         ]),
         image: async ({ data = [] }, mode, { env }) => {
-            let imgurl = data?.[0]?.path ?? fallback(mode);
-            if (env.WALLHAVEN_IMGIX_URL) {
-                imgurl = imgurl.replace("https://w.wallhaven.cc/full", env.WALLHAVEN_IMGIX_URL);
-            }
-            return imgix(new URL(imgurl), mode);
+            return new URL(data?.[0]?.path ?? fallback(mode));
         }
     },
 }
