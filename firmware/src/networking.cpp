@@ -10,18 +10,7 @@
 #include "networking.h"
 #include "logger.h"
 #include "urlparser.h"
-
-#ifndef INKY_RENDERER_VERSION
-#define INKY_RENDERER_VERSION "0.0.1-beta.1"
-#endif
-#ifndef USER_AGENT
-#define USER_AGENT "Inky Renderer/v" INKY_RENDERER_VERSION
-#endif
-
-#ifdef MQTT_MAX_PACKET_SIZE
-#undef MQTT_MAX_PACKET_SIZE
-#endif
-#define MQTT_MAX_PACKET_SIZE 1024
+#include "definitions.h"
 
 const char *displayHeaders[] = {
     "Content-Type",     // Must be image/jpeg
@@ -159,6 +148,7 @@ esp_err_t DisplayImage(Inkplate &display, int rotation, const char *api, const J
     // Use rotation to pass the width and height of the board to support different aspect ratios
     parsed.setParam("w", String(isPortrait ? E_INK_WIDTH : E_INK_HEIGHT));
     parsed.setParam("h", String(isPortrait ? E_INK_HEIGHT : E_INK_WIDTH));
+    parsed.setParam("mbh", String(MSG_BOX_HEIGHT));
 
     Logger::logf(Logger::LOG_DEBUG, "Fetching image from %s", parsed.getURL(true).c_str());
 

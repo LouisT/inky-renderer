@@ -5,6 +5,7 @@
 #include <Inkplate.h>
 #include "images/logo.h"
 #include "time_utils.h"
+#include "definitions.h"
 
 // Log level names for easier debugging
 static const char *levelNames[] = {
@@ -148,7 +149,7 @@ namespace Logger
         // Determine portrait or landscape mode
         const bool isPortrait = (rotation % 2 == 0);
         int w = isPortrait ? E_INK_WIDTH : E_INK_HEIGHT;
-        int h = 30; // Height of the text box
+        int h = MSG_BOX_HEIGHT; // Height of the text box
 
         // Determine Y position based on pos value
         int y = (pos == 0) ? 0 : (pos == 1) ? (isPortrait ? E_INK_HEIGHT / 2 - h / 2 : E_INK_WIDTH / 2 - h / 2)

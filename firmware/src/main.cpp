@@ -19,23 +19,7 @@
 #include "battery.h"
 #include "time_utils.h"
 #include "fonts/FreeSansBoldOblique24pt7b.h"
-
-// Variables for build information
-#ifndef CONFIG_FILE_PATH
-#define CONFIG_FILE_PATH "/config.json"
-#endif
-#ifndef INKY_RENDERER_VERSION
-#define INKY_RENDERER_VERSION "0.0.1-beta.1"
-#endif
-#ifndef ROTATION
-#define ROTATION 0
-#endif
-#ifndef BUILD_TYPE
-#define BUILD_TYPE "debug"
-#endif
-
-// Constants
-#define uS_TO_S_FACTOR 1000000UL
+#include "definitions.h"
 
 Inkplate display(INKPLATE_3BIT);
 
