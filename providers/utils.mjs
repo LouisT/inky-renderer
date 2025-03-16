@@ -5,6 +5,21 @@ export function fallback(mode) {
     return `https://picsum.photos/${mode.w}/${mode.h}/?blur=5&grayscale`;
 }
 
+// Get a fallback response
+export async function getFallbackResponse(_mode, _provider) {
+    let src = new URL(fallback(_mode));
+    return new Response((await fetch(src)).body, {
+        ...transform(_mode),
+        headers: new Headers([
+            ["Content-Type", "image/jpeg"],
+            ["X-Image-Size", `${_mode.w}x${_mode.h}`],
+            ["X-Image-Source", src],
+            ["X-Image-Provider", "Lorem Picsum"],
+            ['X-Invalid-Provider', _provider],
+        ])
+    });
+}
+
 // Apply imgix args to the image
 export function imgix(img, mode) {
     img.searchParams.set("w", mode.w);

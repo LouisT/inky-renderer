@@ -20,7 +20,7 @@
         "basepath": "/api/v1",
         "button": "/render/news",
         "cleardisplay": true,
-        "default": "/image/unsplash,wallhaven",
+        "default": "/render/unsplash,wallhaven",
         "retries": 3,
         "sleepwindow": {
             "start": "10:30pm",

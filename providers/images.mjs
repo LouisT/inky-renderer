@@ -46,7 +46,7 @@ const providers = {
             ["Accept", "application/json"],
         ],
         headers: async (data, mode) => (data?.img ? [
-            ["X-Inky-Message-0", `"${data?.title ?? '???'}"`],
+            ["X-Inky-Message-0", `"${data?.title ?? '???'}" (#${data?.num ?? '???'})`],
             ["X-Inky-Message-2", data?.alt ?? '???'],
         ] : [
             ["X-Inky-Message-0", "Please check your renderer settings!"],
