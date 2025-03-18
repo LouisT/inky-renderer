@@ -146,8 +146,8 @@ esp_err_t DisplayImage(Inkplate &display, int rotation, const char *api, const J
     parsed.setParam("transform", "true");
 
     // Use rotation to pass the width and height of the board to support different aspect ratios
-    parsed.setParam("w", String(isPortrait ? E_INK_WIDTH : E_INK_HEIGHT));
-    parsed.setParam("h", String(isPortrait ? E_INK_HEIGHT : E_INK_WIDTH));
+    parsed.setParam("w", String(isPortrait ? F_E_INK_WIDTH : F_E_INK_HEIGHT));
+    parsed.setParam("h", String(isPortrait ? F_E_INK_HEIGHT : F_E_INK_WIDTH));
     parsed.setParam("mbh", String(MSG_BOX_HEIGHT));
 
     Logger::logf(Logger::LOG_DEBUG, "Fetching image from %s", parsed.getURL(true).c_str());
@@ -182,6 +182,7 @@ esp_err_t DisplayImage(Inkplate &display, int rotation, const char *api, const J
         int code = https.GET();
         if (code == HTTP_CODE_OK)
         {
+            // Log optional X-Image-Source
             if (https.hasHeader("X-Image-Source"))
             {
                 Logger::logf(Logger::LOG_INFO, "Image source: %s", https.header("X-Image-Source").c_str());
@@ -191,94 +192,122 @@ esp_err_t DisplayImage(Inkplate &display, int rotation, const char *api, const J
             if (contentType != "image/jpeg" && contentType != "image/jpg")
             {
                 Logger::log(Logger::LOG_DEBUG, "Invalid image type; try again...");
-                continue; // try again
-            }
-
-            int32_t len = https.getSize();
-            if (len <= 0 && https.hasHeader("Content-Length"))
-            {
-                len = atoi(https.header("Content-Length").c_str());
-            }
-
-            if (len <= 0 || len > (E_INK_WIDTH * E_INK_HEIGHT * 8 + 100))
-            {
-                Logger::log(Logger::LOG_ERROR, "Invalid image size; try again..");
-                continue; // try again
-            }
-
-            std::unique_ptr<uint8_t[]> buffer(new (std::nothrow) uint8_t[len]);
-            if (!buffer)
-            {
-                Logger::log(Logger::LOG_ERROR, "Failed to allocate memory for image buffer");
                 https.end();
-                return ESP_ERR_NO_MEM; // out of memory
+                continue; // try again
             }
 
-            // Get a pointer to the stream
+            // Attempt to fetch the Content-Length
+            int32_t contentLength = https.getSize();
+            if (contentLength <= 0 && https.hasHeader("Content-Length"))
+            {
+                contentLength = atoi(https.header("Content-Length").c_str());
+            }
+
+            // If we do have a Content-Length, do a sanity check
+            if (contentLength > 0 && contentLength > (E_INK_WIDTH * E_INK_HEIGHT * 8 + 100))
+            {
+                Logger::log(Logger::LOG_ERROR, "Invalid (too large) Content-Length; try again..");
+                https.end();
+                continue; // try again
+            }
+
+            // Read the stream; if unknown length (contentLength == -1), read until closed or timeout
             WiFiClient *stream = https.getStreamPtr();
             if (!stream)
             {
                 Logger::log(Logger::LOG_ERROR, "Failed to obtain stream");
                 https.end();
-                return ESP_ERR_INVALID_RESPONSE; // invalid response
+                return ESP_ERR_INVALID_RESPONSE;
             }
 
-            uint8_t *buffPtr = buffer.get();
-            int bytesRead = 0;
             unsigned long startMillis = millis();
-            const unsigned long timeoutMillis = timeout * 1000;
+            unsigned long timeoutMillis = timeout * 1000;
 
-            // Read the image into the buffer
-            while (https.connected() && bytesRead < len)
+            std::vector<uint8_t> imageBuffer;
+            if (contentLength > 0)
             {
-                if (millis() - startMillis > timeoutMillis)
-                {
-                    Logger::log(Logger::LOG_ERROR, "Image download timed out");
-                    break;
-                }
+                // If we know how big it is, reserve to reduce allocations
+                imageBuffer.reserve(contentLength);
+            }
 
+            const size_t CHUNK_SIZE = 1024;
+            size_t totalBytesRead = 0;
+
+            while ((millis() - startMillis) < timeoutMillis)
+            {
                 size_t availableBytes = stream->available();
-                if (availableBytes)
+                if (availableBytes > 0)
                 {
-                    int toRead = std::min((size_t)(len - bytesRead), availableBytes);
-                    int c = stream->readBytes(buffPtr, toRead);
+                    uint8_t temp[CHUNK_SIZE];
+                    size_t toRead = (availableBytes > CHUNK_SIZE) ? CHUNK_SIZE : availableBytes;
 
-                    if (c > 0)
+                    // If we have a known contentLength, be sure not to exceed it
+                    if (contentLength > 0)
                     {
-                        buffPtr += c;
-                        bytesRead += c;
+                        size_t bytesRemaining = contentLength - totalBytesRead;
+                        if (bytesRemaining < toRead)
+                        {
+                            toRead = bytesRemaining;
+                        }
                     }
-                    else
+
+                    int bytesReadNow = stream->readBytes(temp, toRead);
+                    if (bytesReadNow <= 0)
                     {
                         Logger::log(Logger::LOG_ERROR, "Stream read failed");
+                        break;
+                    }
+
+                    // Append chunk to vector
+                    imageBuffer.insert(imageBuffer.end(), temp, temp + bytesReadNow);
+                    totalBytesRead += bytesReadNow;
+
+                    // If we have read all data according to contentLength, break
+                    if (contentLength > 0 && totalBytesRead >= (size_t)contentLength)
+                    {
                         break;
                     }
                 }
                 else
                 {
+                    // If the connection is closed but there's no more data, break out
+                    if (!https.connected())
+                    {
+                        break;
+                    }
+                    // Otherwise, wait briefly for more data
                     delay(10);
                 }
             }
 
-            if (bytesRead != len)
+            // Verify if we got the complete image
+            if (contentLength > 0 && totalBytesRead != (size_t)contentLength)
             {
-                Logger::log(Logger::LOG_ERROR, "Incomplete image download");
+                Logger::log(Logger::LOG_ERROR, "Incomplete image download according to Content-Length");
+                https.end();
+                continue; // try again
+            }
+            else if (imageBuffer.empty())
+            {
+                Logger::log(Logger::LOG_ERROR, "No data read from stream");
+                https.end();
                 continue; // try again
             }
 
-            // Clear the screen
+            // Clear the screen before drawing
             display.clearDisplay();
 
-            // Display the raw jpeg image
-            if (display.drawJpegFromBuffer(buffer.get(), bytesRead, 0, 0, 1, 0))
+            // Display the raw jpeg image from the buffer
+            if (display.drawJpegFromBuffer(imageBuffer.data(), imageBuffer.size(), 0, 0, DITHERRING, 0))
             {
+                // If the server returned messages in headers like "X-Inky-Message-0", ...
                 for (int i = 0; i <= 2; i++)
                 {
-                    char header[20];
-                    snprintf(header, sizeof(header), "X-Inky-Message-%d", i);
-                    if (https.hasHeader(header))
+                    char headerName[20];
+                    snprintf(headerName, sizeof(headerName), "X-Inky-Message-%d", i);
+                    if (https.hasHeader(headerName))
                     {
-                        Logger::onScreen(Logger::LOG_INFO, false, i, rotation, https.header(header).c_str());
+                        Logger::onScreen(Logger::LOG_INFO, false, i, rotation, https.header(headerName).c_str());
                     }
                 }
 
@@ -295,7 +324,7 @@ esp_err_t DisplayImage(Inkplate &display, int rotation, const char *api, const J
         }
 
         https.end();
-        delay(1000);
+        delay(1000); // short delay before next attempt
     }
 
     Logger::log(Logger::LOG_ERROR, "Image fetch failed after all retries.");

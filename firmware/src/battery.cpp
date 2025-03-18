@@ -1,6 +1,7 @@
 #include "battery.h"
 
 // Lookup table mapping voltage levels to battery percentages
+// NOTE: This is totally arbitrary and may need to be adjusted
 const float voltageTable[11][2] = {
     {4.2, 100}, // 100% at 4.2V
     {4.1, 90},  // 90% at 4.1V

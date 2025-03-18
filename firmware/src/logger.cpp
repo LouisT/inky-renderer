@@ -3,9 +3,15 @@
 #include <deque>
 #include "logger.h"
 #include <Inkplate.h>
-#include "images/logo.h"
 #include "time_utils.h"
 #include "definitions.h"
+
+#ifdef ARDUINO_INKPLATE10V2
+#include "images/logo.h"
+#endif
+#ifdef ARDUINO_INKPLATECOLOR
+#include "images/logo_color.h"
+#endif
 
 // Log level names for easier debugging
 static const char *levelNames[] = {
@@ -104,7 +110,7 @@ namespace Logger
         // Generate timestamped log message
         String timestamp = display->rtcIsSet() ? getLocalTimestamp(display->rtcGetEpoch()) : "";
         String logEntry = timestamp.length() > 0 ? String("[") + formattedLevel + "] (" + timestamp + "): " + message
-                                  : String("[") + formattedLevel + "]: " + message;
+                                                 : String("[") + formattedLevel + "]: " + message;
 
         // Print to stream
         stream->println(logEntry);
@@ -156,20 +162,28 @@ namespace Logger
                                             : (isPortrait ? E_INK_HEIGHT - h : E_INK_WIDTH - h);
 
         // Clear the display and draw a logo if requested
-        if (clear)
+        if (clear && logo_w > 0 && logo_h > 0)
         {
             display->clearDisplay();
-            int logoX = (E_INK_WIDTH - logo_w) / 2;
-            int logoY = (E_INK_HEIGHT - logo_h) / 2;
-            display->drawBitmap(logoX, logoY, logo_img, logo_w, logo_h, 0);
+            if (logo_w > 0 && logo_h > 0)
+            {
+                int logoX = (E_INK_WIDTH - logo_w) / 2;
+                int logoY = (E_INK_HEIGHT - logo_h) / 2;
+                display->drawBitmap(logoX, logoY, logo_img, logo_w, logo_h, 0);
+            }
         }
+
+        // For Inkplate Color, adjust Y if needed so text is properly centered
+        int textY = y + 5;
+#ifdef ARDUINO_INKPLATECOLOR
+        textY = y + static_cast<int>(MSG_BOX_HEIGHT / 2.5);
+#endif
 
         // Set font and text properties
         display->setFont();
         display->setTextColor(0, 7);
-        display->setTextSize(2);
-        display->fillRect(0, y, w, h, 7);
-        display->setCursor(8, y + 6);
+        display->setTextSize(TEXT_SIZE);
+        display->setCursor(8, textY);
         display->print(buffer);
     }
 }

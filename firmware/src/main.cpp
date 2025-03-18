@@ -1,4 +1,3 @@
-
 #define FS_NO_GLOBALS
 #include <FS.h>
 #ifdef FILE_READ
@@ -21,7 +20,12 @@
 #include "fonts/FreeSansBoldOblique24pt7b.h"
 #include "definitions.h"
 
+#ifdef ARDUINO_INKPLATE10V2
 Inkplate display(INKPLATE_3BIT);
+#endif
+#ifdef ARDUINO_INKPLATECOLOR
+Inkplate display;
+#endif
 
 // Allocate the JSON document
 JsonDocument config;
@@ -251,6 +255,8 @@ void setup()
     {
         const char *psb = "Please Stand By";
         display.clearDisplay();
+#ifdef ARDUINO_INKPLATE10V2
+        // Only show on Inkplate 10; far too slow with 6COLOR!
         display.setTextWrap(false);
         if (rotation == 0 || rotation == 2)
         {
@@ -284,6 +290,7 @@ void setup()
             display.setCursor(12, 565);
             display.print(psb);
         }
+#endif
         draw();
     }
 

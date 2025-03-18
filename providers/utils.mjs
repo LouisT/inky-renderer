@@ -40,12 +40,12 @@ export function transform(mode, _headers = []) {
             image: {
                 format: "baseline-jpeg",
                 fit: "pad",
-                background: "#808080",
+                background: "#FFF", // Default to white for cleaner inkplate messages
                 width: mode.w,
                 height: mode.h,
                 ...(mode.mbh > 0 ? {
                     border: {
-                        color: "#808080",
+                        color: "#FFF", // Default to white for cleaner inkplate messages
                         top: _headers.some((h) => h.includes("X-Inky-Message-0")) ? mode.mbh : 0,
                         bottom: _headers.some((h) => h.includes("X-Inky-Message-2")) ? mode.mbh : 0
                     }

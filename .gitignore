@@ -16,7 +16,7 @@ node_modules/
 /playwright/.cache/
 
 # Firmware files
-data/config.*json
+data/config*.*json
 
 # dev
 .yarn/

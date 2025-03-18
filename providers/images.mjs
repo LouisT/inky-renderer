@@ -85,15 +85,15 @@ const providers = {
     },
     "wallhaven": {
         mbhOffset: 1,
-        api: async (mode, { env }) => {
+        api: async (mode, { env, req }) => {
             // Parse the API endpoint
             let url = new URL("https://wallhaven.cc/api/v1/search");
 
             // Set the search params
             url.searchParams.set("apikey", env.WALLHAVEN_API_KEY); // Wallhaven API key
             url.searchParams.set("sorting", "random"); // Get a random image
-            url.searchParams.set("categories", "101"); // Image categories (general, anime, people)
-            url.searchParams.set("purity", "111"); // Image purity (sfw, sketchy, nsfw)
+            url.searchParams.set("categories", req.query('categories') ?? "101"); // Image categories (general, anime, people)
+            url.searchParams.set("purity", req.query('purity') ?? "111"); // Image purity (sfw, sketchy, nsfw)
             url.searchParams.set("ratios", `${(mode.w / mode.h).toFixed(2)}x1`);
 
             // Return the API endpoint
