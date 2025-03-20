@@ -298,7 +298,7 @@ esp_err_t DisplayImage(Inkplate &display, int rotation, const char *api, const J
             display.clearDisplay();
 
             // Display the raw jpeg image from the buffer
-            if (display.drawJpegFromBuffer(imageBuffer.data(), imageBuffer.size(), 0, 0, DITHERRING, 0))
+            if (display.drawJpegFromBuffer(imageBuffer.data(), imageBuffer.size(), 0, 0, static_cast<int>(DITHERING), 0))
             {
                 // If the server returned messages in headers like "X-Inky-Message-0", ...
                 for (int i = 0; i <= 2; i++)

@@ -21,8 +21,8 @@
 #define MSG_BOX_HEIGHT 30
 #endif
 
-#ifndef DITHERRING
-#define DITHERRING 1
+#ifndef DITHERING
+#define DITHERING 1
 #endif
 
 #ifndef INKY_RENDERER_VERSION

@@ -33,7 +33,7 @@ v1.get('/render/:providers?/:raw?', async (c) => {
         _provider;
 
     if (_providers) {
-        _provider = (_providers.split(/[\|,\s-]/gi)).sort(() => .5 - Math.random())[0];  // Get a random provider from a supplied list
+        _provider = (_providers.split(/[\|,\s]/gi)).sort(() => .5 - Math.random())[0];  // Get a random provider from a supplied list
     } else {
         _provider = Object.keys(allProviders).sort(() => .5 - Math.random())[0];  // Get a random provider
     }
@@ -56,73 +56,101 @@ v1.get('/render/:providers?/:raw?', async (c) => {
 
     //  Fetch the json data from the API endpoint
     let data;
-    try {
-        data = await (await fetch(await provider.api(_mode, c), { headers })).json();
-    } catch (e) {
-        return c.json({
-            error: {
-                message: e.message ?? "Unknown error",
-            }
-        }, 500);
+    if ('api' in provider) {
+        try {
+            data = await (await fetch(await provider.api(_mode, c), { headers })).json();
+        } catch (e) {
+            console.trace(e);
+            return c.json({
+                error: {
+                    message: e.message ?? "Unknown error",
+                }
+            }, 500);
+        }
     }
 
-    if (_raw)
-        return provider.type == "render" ?
-            c.html(await provider.source(data, _mode, c))
-            : c.json(data);
+    try {
+        if (_raw)
+            return data ? (provider.type == "render" ?
+                c.html(await provider.source(data, _mode, c))
+                : c.json(data))
+                : c.json({ error: { message: "No raw data for provider found." } }, 400);
 
-    // Check the provider type
-    switch (String(provider._type).toLowerCase()) {
-        case "image":
-            // Build the image URL
-            let img = await provider.image(data, _mode, c);
+        // Check the provider type
+        let _type = String(provider._type).toLowerCase();
+        switch (_type) {
+            case "image": // Pull images from URLs
+                // Build the image URL
+                let img = await provider.image(data, _mode, c);
 
-            // Get headers
-            let _headers = (await provider.headers?.(data, _mode, c) ?? []);
+                // Get headers
+                let _headers = (await provider.headers?.(data, _mode, c) ?? []);
 
-            // Fetch the image + return to the client
-            return new Response((await fetch(img, {
-                headers,
-                ...transform(_mode, _headers),
-            })).body, {
-                headers: new Headers([
-                    ["Content-Type", "image/jpeg"],
-                    ["X-Image-Size", `${_mode.w}x${_mode.h}`],
-                    ["X-Image-Source", img.toLocaleString()],
-                    ["X-Image-Provider", _provider],
-                    ..._headers,
-                ]),
-            });
+                // Fetch the image + return to the client
+                return new Response((await fetch(img, {
+                    headers,
+                    ...transform(_mode, _headers),
+                })).body, {
+                    headers: new Headers([
+                        ["Content-Type", "image/jpeg"],
+                        ["X-Image-Size", `${_mode.w}x${_mode.h}`],
+                        ["X-Image-Source", img.toLocaleString()],
+                        ["X-Image-Provider", _provider],
+                        ..._headers,
+                    ]),
+                });
 
-        case "render":
-            // Create the browser instance
-            const browser = await puppeteer.launch(c.env.BROWSER);
-            const page = await browser.newPage();
-            await page.setViewport({ width: _mode.w, height: _mode.h });
+            case "render": // Create screenshots of local pages
+            case "remote": // Create screenshots of remote pages
+                // Create the browser instance
+                const browser = await puppeteer.launch(c.env.BROWSER);
+                const page = await browser.newPage();
+                await page.setViewport({ width: _mode.w, height: _mode.h });
 
-            // Set the page content
-            await page.setContent(await provider.source(data, _mode, c));
+                // If  render, set the page content
+                let $target;
+                if (_type == "render") {
+                    // Set the page content
+                    await page.setContent(await provider.source(data, _mode, c));
 
-            // Get the image element
-            let $target = await page.$('.inky-content');
+                    // Get the image element
+                    $target = await page.$('.inky-content');
+                } else {
+                    // Go to the page
+                    await page.goto(await provider.link(_mode, c));
 
-            // Take the screenshot + return to the client
-            return new Response((await $target.screenshot({
-                type: "jpeg",
-                fromSurface: true,
-                omitBackground: true,
-                optimizeForSpeed: true
-            })), {
-                headers: new Headers([
-                    ["Content-Type", "image/jpeg"],
-                    ["X-Image-Size", `${_mode.w}x${_mode.h}`],
-                    ["X-Image-Provider", _provider],
-                    ...(await provider.headers?.(data, _mode, c.env) ?? []),
-                ]),
-            });
+                    // Select the target element
+                    if (provider.selectorrs instanceof Function) {
+                        $target = await provider.selectorrs(_mode, c, page);
+                    } else if (("target" in provider) && typeof provider.target == "string") {
+                        $target = await page.$(provider.target);
+                    } else {
+                        $target = page; // If no target is specified, use the whole page
+                    }
+                }
 
-        default:
-            return getFallbackResponse(_mode, _provider);
+                // Take the screenshot + return to the client
+                // TODO: Support transform when a custom target is used to keep width and height
+                return new Response((await $target.screenshot(Object.assign({
+                    type: "jpeg", // Always use jpeg
+                    fromSurface: true,
+                    omitBackground: true,
+                    optimizeForSpeed: true,
+                }, (await provider?.options?.(_mode, c) ?? {})))), {
+                    headers: new Headers([
+                        ["Content-Type", "image/jpeg"],
+                        ["X-Image-Size", `${_mode.w}x${_mode.h}`],
+                        ["X-Image-Provider", _provider],
+                        ...(await provider.headers?.(data, _mode, c.env) ?? []),
+                    ]),
+                });
+
+            default:
+                return getFallbackResponse(_mode, _provider);
+        }
+    } catch (e) {
+        console.trace(e);
+        return getFallbackResponse(_mode, _provider);
     }
 });
 

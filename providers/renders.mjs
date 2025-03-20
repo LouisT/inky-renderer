@@ -2,7 +2,6 @@ import articles from "./templates/articles.mjs";
 
 const providers = {
     "nytimes": {
-        type: "render",
         api: async (mode, c) => {
             // Get the section
             let section = c.req.query('section') || 'world';
@@ -20,7 +19,7 @@ const providers = {
             ["Accept", "application/json"],
         ],
         source: async ({ results = [] }, mode) => {
-            return articles(
+            return await articles(
                 results.slice(0, mode.w > mode.h ? 6 : 8),
                 mode,
                 'nytimes'
