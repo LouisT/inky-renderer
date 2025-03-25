@@ -3,15 +3,15 @@ import { fallback, imgix } from "./utils.mjs";
 const providers = {
     "nasa": {
         mbhOffset: 2,
-        api: async (mode, { env }) => {
+        api: async (mode, { env }, headers) => {
             // Parse the API endpoint
             let url = new URL("https://api.nasa.gov/planetary/apod");
 
             // Set the search params
             url.searchParams.set("api_key", env.NASA_API_KEY)
 
-            // Return the API endpoint
-            return url;
+            // Return the JSON data from the API
+            return await (await fetch(url, { headers })).json();
         },
         apiHeaders: async () => [
             ["Accept", "application/json"],
@@ -29,7 +29,7 @@ const providers = {
     },
     "xkcd": {
         mbhOffset: 2,
-        api: async (mode, { env }) => {
+        api: async (mode, { env }, headers) => {
             // A "hack" to get a random image from xkcd
             let max = 3062;
             try {
@@ -39,8 +39,8 @@ const providers = {
             // Build the API endpoint
             let url = new URL(`https://xkcd.com/${Math.floor(Math.random() * max) + 1}/info.0.json`);
 
-            // Return the API endpoint
-            return url;
+            // Return the JSON data from the API
+            return await (await fetch(url, { headers })).json();
         },
         apiHeaders: async () => [
             ["Accept", "application/json"],
@@ -58,7 +58,7 @@ const providers = {
     },
     "unsplash": {
         mbhOffset: 2,
-        api: async (mode, { env }) => {
+        api: async (mode, { env }, headers) => {
             // Parse the API endpoint
             let url = new URL("https://api.unsplash.com/photos/random");
 
@@ -66,8 +66,8 @@ const providers = {
             url.searchParams.set("client_id", env.UNSPLASH_CLIENT_ID)
             url.searchParams.set("orientation", mode.w > mode.h ? 'landscape' : 'portrait');
 
-            // Return the API endpoint
-            return url;
+            // Return the JSON data from the API
+            return await (await fetch(url, { headers })).json();
         },
         apiHeaders: async () => [
             ["Accept", "application/json"],
@@ -85,7 +85,7 @@ const providers = {
     },
     "wallhaven": {
         mbhOffset: 1,
-        api: async (mode, { env, req }) => {
+        api: async (mode, { env, req }, headers) => {
             // Parse the API endpoint
             let url = new URL("https://wallhaven.cc/api/v1/search");
 
@@ -93,11 +93,11 @@ const providers = {
             url.searchParams.set("apikey", env.WALLHAVEN_API_KEY); // Wallhaven API key
             url.searchParams.set("sorting", "random"); // Get a random image
             url.searchParams.set("categories", req.query('categories') ?? "101"); // Image categories (general, anime, people)
-            url.searchParams.set("purity", req.query('purity') ?? "111"); // Image purity (sfw, sketchy, nsfw)
+            url.searchParams.set("purity", req.query('purity') ?? "100"); // Image purity (sfw, sketchy, nsfw)
             url.searchParams.set("ratios", `${(mode.w / mode.h).toFixed(2)}x1`);
 
-            // Return the API endpoint
-            return url;
+            // Return the JSON data from the API
+            return await (await fetch(url, { headers })).json();
         },
         apiHeaders: async () => [
             ["Accept", "application/json"],

@@ -15,6 +15,10 @@ enabled = true
 [placement]
 mode = "smart"
 
+[assets]
+directory = "./assets"
+binding = "ASSETS"
+
 [env.dev]
 browser = { binding = "BROWSER" }
 kv_namespaces = [

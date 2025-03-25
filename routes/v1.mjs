@@ -3,6 +3,7 @@ import puppeteer from "@cloudflare/puppeteer";
 import { basicAuth } from 'hono/basic-auth';
 import { transform, getFallbackResponse } from '../providers/utils.mjs';
 import allProviders from '../providers/index.mjs';
+import getBrowserSession from './libs/browser.mjs';
 
 // Create versioned endpoint
 const v1 = new Hono().basePath('/api/v1');
@@ -30,6 +31,7 @@ v1.get('/render/:providers?/:raw?', async (c) => {
             mbh: parseInt(c.req.query('mbh') ?? 0),
         },
         _raw = c.req.param('raw') == "raw",
+        _json = c.req.query('json') == "true",
         _provider;
 
     if (_providers) {
@@ -58,7 +60,7 @@ v1.get('/render/:providers?/:raw?', async (c) => {
     let data;
     if ('api' in provider) {
         try {
-            data = await (await fetch(await provider.api(_mode, c), { headers })).json();
+            data = await provider.api(_mode, c, headers);
         } catch (e) {
             console.trace(e);
             return c.json({
@@ -70,16 +72,19 @@ v1.get('/render/:providers?/:raw?', async (c) => {
     }
 
     try {
+        // Get the provider type
+        let _type = String(provider._type).toLowerCase();
+
+        // If raw, return the data
         if (_raw)
-            return data ? (provider.type == "render" ?
+            return (_type == "render" && !_json ?
                 c.html(await provider.source(data, _mode, c))
-                : c.json(data))
-                : c.json({ error: { message: "No raw data for provider found." } }, 400);
+                : c.json(data));
 
         // Check the provider type
-        let _type = String(provider._type).toLowerCase();
         switch (_type) {
-            case "image": // Pull images from URLs
+            // Feetch remote images
+            case "image":
                 // Build the image URL
                 let img = await provider.image(data, _mode, c);
 
@@ -100,43 +105,69 @@ v1.get('/render/:providers?/:raw?', async (c) => {
                     ]),
                 });
 
-            case "render": // Create screenshots of local pages
-            case "remote": // Create screenshots of remote pages
-                // Create the browser instance
-                const browser = await puppeteer.launch(c.env.BROWSER);
-                const page = await browser.newPage();
-                await page.setViewport({ width: _mode.w, height: _mode.h });
+            // Handle Browser Rendering calls
+            case "render":
+            case "remote":
+                // Create a browser session
+                let browser;
+                try {
+                    browser = await puppeteer.connect(c.env.BROWSER, (await getBrowserSession(c.env.BROWSER)));
+                } catch { /* Ignore */ }
+                browser = browser ?? await puppeteer.launch(c.env.BROWSER);
 
-                // If  render, set the page content
+                // Create a new page
+                let page = await browser.newPage();
+
+                // Set the viewport, with a 5px buffer
+                await page.setViewport({ width: _mode.w + 5, height: _mode.h + 5 });
+
+                // If render, set the page content
                 let $target;
                 if (_type == "render") {
                     // Set the page content
                     await page.setContent(await provider.source(data, _mode, c));
 
-                    // Get the image element
-                    $target = await page.$('.inky-content');
+                    // Apply baseurl to all assets
+                    await page.$$eval('script[src], link[rel="stylesheet"], img[src]', (elms, base) => elms.forEach(elm => {
+                        if (('src' in elm) && elm.src.startsWith('/')) {
+                            elm.src = new URL(elm.src, base).href;
+                        } else if (('href' in elm) && elm.href.startsWith('/')) {
+                            elm.href = new URL(elm.href, base).href;
+                        }
+                    }), c.env.BASEURL);
                 } else {
-                    // Go to the page
+                    // Go to the link
                     await page.goto(await provider.link(_mode, c));
+                }
 
-                    // Select the target element
+                // Select the target element
+                let target = page;
+                try {
                     if (provider.selectorrs instanceof Function) {
                         $target = await provider.selectorrs(_mode, c, page);
                     } else if (("target" in provider) && typeof provider.target == "string") {
                         $target = await page.$(provider.target);
                     } else {
-                        $target = page; // If no target is specified, use the whole page
+                        $target = await page.$('.container');
                     }
+                } catch (e) {
+                    console.trace(e);
+                    /* Falling back to page */
                 }
 
-                // Take the screenshot + return to the client
-                // TODO: Support transform when a custom target is used to keep width and height
-                return new Response((await $target.screenshot(Object.assign({
+                // Take a screenshot
+                let screenshot = (await $target.screenshot(Object.assign({
                     type: "jpeg", // Always use jpeg
-                    fromSurface: true,
+                    quality: 100,
                     omitBackground: true,
                     optimizeForSpeed: true,
-                }, (await provider?.options?.(_mode, c) ?? {})))), {
+                }, (await provider?.options?.(_mode, c) ?? {}))));
+
+                // Disconnect and free up resources
+                await browser.disconnect();
+
+                // Take the screenshot + return to the client
+                return new Response(screenshot, {
                     headers: new Headers([
                         ["Content-Type", "image/jpeg"],
                         ["X-Image-Size", `${_mode.w}x${_mode.h}`],
@@ -145,6 +176,7 @@ v1.get('/render/:providers?/:raw?', async (c) => {
                     ]),
                 });
 
+            // Fallback to Lorem Picsum
             default:
                 return getFallbackResponse(_mode, _provider);
         }

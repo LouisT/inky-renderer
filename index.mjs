@@ -15,5 +15,8 @@ app.get('/', (c) => c.redirect(pkg.repository));
 app.route('/', v0);
 app.route('/', v1);
 
+// Send anything not matching to 404
+app.get("/*", async (c) => c.json({ error: "Not Found" }, 404));
+
 // Export the app
 export default app

@@ -16,6 +16,7 @@ const char *displayHeaders[] = {
     "Content-Type",     // Must be image/jpeg
     "Content-Length",   // Use this to determine size
     "X-Image-Source",   // URL of the image, for logging
+    "X-No-Dithering",   // Disable dithering on the display if set to true
     "X-Inky-Message-0", // Fow showing a message on the display (top)
     "X-Inky-Message-1", // Fow showing a message on the display (middle)
     "X-Inky-Message-2", // Fow showing a message on the display (bottom)
@@ -146,8 +147,8 @@ esp_err_t DisplayImage(Inkplate &display, int rotation, const char *api, const J
     parsed.setParam("transform", "true");
 
     // Use rotation to pass the width and height of the board to support different aspect ratios
-    parsed.setParam("w", String(isPortrait ? F_E_INK_WIDTH : F_E_INK_HEIGHT));
-    parsed.setParam("h", String(isPortrait ? F_E_INK_HEIGHT : F_E_INK_WIDTH));
+    parsed.setParam("w", String(isPortrait ? E_INK_WIDTH : E_INK_HEIGHT));
+    parsed.setParam("h", String(isPortrait ? E_INK_HEIGHT : E_INK_WIDTH));
     parsed.setParam("mbh", String(MSG_BOX_HEIGHT));
 
     Logger::logf(Logger::LOG_DEBUG, "Fetching image from %s", parsed.getURL(true).c_str());
@@ -297,8 +298,16 @@ esp_err_t DisplayImage(Inkplate &display, int rotation, const char *api, const J
             // Clear the screen before drawing
             display.clearDisplay();
 
+            // Allow the renderer to override the dithering setting
+            int dither = static_cast<int>(DITHERING);
+            if (https.hasHeader("X-No-Dithering") && https.header("X-No-Dithering") == "true")
+            {
+                dither = 0;
+            }
+            Logger::logf(Logger::LOG_DEBUG, "Dithering: %d", dither);
+
             // Display the raw jpeg image from the buffer
-            if (display.drawJpegFromBuffer(imageBuffer.data(), imageBuffer.size(), 0, 0, static_cast<int>(DITHERING), 0))
+            if (display.drawJpegFromBuffer(imageBuffer.data(), imageBuffer.size(), 0, 0, dither, 0))
             {
                 // If the server returned messages in headers like "X-Inky-Message-0", ...
                 for (int i = 0; i <= 2; i++)

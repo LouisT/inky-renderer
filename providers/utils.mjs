@@ -54,4 +54,3 @@ export function transform(mode, _headers = []) {
         }
     }
 }
-

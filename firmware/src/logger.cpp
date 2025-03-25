@@ -162,15 +162,13 @@ namespace Logger
                                             : (isPortrait ? E_INK_HEIGHT - h : E_INK_WIDTH - h);
 
         // Clear the display and draw a logo if requested
-        if (clear && logo_w > 0 && logo_h > 0)
+        if (clear)
         {
             display->clearDisplay();
-            if (logo_w > 0 && logo_h > 0)
-            {
-                int logoX = (E_INK_WIDTH - logo_w) / 2;
-                int logoY = (E_INK_HEIGHT - logo_h) / 2;
-                display->drawBitmap(logoX, logoY, logo_img, logo_w, logo_h, 0);
-            }
+            display->drawBitmap(
+                ((isPortrait ? E_INK_WIDTH : E_INK_HEIGHT) - logo_w) / 2,
+                ((isPortrait ? E_INK_HEIGHT : E_INK_WIDTH) - logo_h) / 2,
+                logo_img, logo_w, logo_h, 0);
         }
 
         // For Inkplate Color, adjust Y if needed so text is properly centered

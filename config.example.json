@@ -18,9 +18,9 @@
     },
     "renderer": {
         "basepath": "/api/v1",
-        "button": "/render/news",
+        "button": "/render/weather?location=Los%20Angeles,%20CA",
         "cleardisplay": true,
-        "default": "/render/unsplash,wallhaven",
+        "default": "/render/unsplash,wallhaven,xkcd",
         "retries": 3,
         "sleepwindow": {
             "start": "10:30pm",
@@ -28,6 +28,7 @@
         },
         "timeout": 30,
         "wakes": {
+            "8:00am": "/render/weather?location=Los%20Angeles,%20CA",
             "10:30am": "/render/news?section=us",
             "5:00pm": "/render/news?section=world"
         }
