@@ -44,7 +44,12 @@ const providers = {
             }
 
             // Append the query param "location" to the URL path, url encoded
-            url.searchParams.set("location", c.req.query('location') ?? c.env.DEFAULT_WEATHER_LOCATION ?? "San Francisco, CA");
+            url.searchParams.set("location", (
+                c.req.query('location')
+                ?? c.env.DEFAULT_WEATHER_LOCATION
+                ?? (c.req?.raw?.cf?.city && c.req?.raw?.cf?.regionCode && `${c.req?.raw?.cf?.city},${c.req?.raw?.cf?.regionCode}`)
+                ?? "San Francisco,CA" // Fallback to San Francisco?
+            ));
 
             // Return the JSON data from the API
             return await (await fetch(url, { headers })).json();

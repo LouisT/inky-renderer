@@ -24,8 +24,8 @@ export default async function (articles, mode, provider = false) {
                             </h2>
                             <div class="article-snippet for-1200-825 for-825-1200" style="--display-mode:flex;">
                                 <img
-                                    src="${article.multimedia?.find?.(m => ["Large Thumbnail", "Standard Thumbnail", "Small Thumbnail"].includes(m.format))?.url}"
-                                    class="for-1200-825 for-825-1200 pixelated"
+                                    src="${article.multimedia.find?.(m => ["Large Thumbnail", "Standard Thumbnail", "Small Thumbnail"].includes(m.format))?.url}"
+                                    class="for-1200-825 for-825-1200"
                                 />
                                 <blockquote cite="${article.byline}" class="fs-xxs">
                                     ${article.snippet || article.abstract}

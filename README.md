@@ -15,7 +15,7 @@ Firmware + remote rendering service for Inkplate devices via Cloudflare Workers.
     * Supports custom section query: `/api/v1/render/news?section=us` (default: world)
     * See [docs](https://developer.nytimes.com/docs/top-stories-product/1/routes/%7Bsection%7D.json/get) for more information.
     * 6COLOR only displays headlines (for now!?)
-2) Weather from [Visual Crossing](https://www.visualcrossing.com/) - Inkplates: 10, 6COLOR
+2) Weather from [Visual Crossing](https://www.visualcrossing.com/) (/weather) - Inkplates: 10, 6COLOR
     * 6COLOR only displays the forecast for the next 3 days while in landscape.
 
 ### Supported Devices
