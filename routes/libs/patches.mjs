@@ -6,9 +6,6 @@ class URLHandler {
             "href",
             "src",
             "action",
-            "cite",
-            "data",
-            "poster",
         ]);
     }
 
