@@ -1,6 +1,6 @@
 import { html, raw } from 'hono/html';
-import QRCode from 'qrcode-svg';
 import images from './_images.mjs';
+import { qr } from './_utils.mjs';
 
 export default async function (articles, mode, provider = false) {
     return html`
@@ -52,7 +52,3 @@ export default async function (articles, mode, provider = false) {
 </html>
     `;
 };
-
-function qr(content) {
-    return new QRCode({ content, padding: 0, width: 100, height: 100, color: "#000000", background: "#ffffff", ecl: "M" }).svg();
-}

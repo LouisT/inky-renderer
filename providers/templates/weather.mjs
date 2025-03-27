@@ -1,4 +1,5 @@
 import { html, raw } from 'hono/html';
+import { getDay, epochToTime } from './_utils.mjs';
 
 export default async function (data, mode) {
     let current = data?.currentConditions ?? {},
@@ -9,7 +10,6 @@ export default async function (data, mode) {
     <head>
         <meta charset="UTF-8">
         <title>Retro Weather</title>
-        <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
         <link rel="stylesheet" href="/styles/retro.css">
         <link rel="stylesheet" href="/styles/queries.css">
         <link rel="stylesheet" href="/styles/weather.css">
@@ -58,17 +58,3 @@ export default async function (data, mode) {
 </html>
     `;
 };
-
-function epochToDate(epoch) {
-    return new Date(epoch * 1000);
-}
-
-function epochToTime(epoch = Date.now(), timeZone = "America/Los_Angeles") {
-    return epochToDate(epoch).toLocaleTimeString('en-US', {
-        timeZone,
-    });
-}
-
-function getDay(ds) {
-    return ["Sun", "Mon", "Tue", "Wen", "Thu", "Fri", "Sat"][new Date(ds).getDay()];
-}

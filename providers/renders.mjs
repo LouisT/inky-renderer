@@ -1,5 +1,6 @@
 import articles from "./templates/articles.mjs";
 import weather from "./templates/weather.mjs";
+import hn from "./templates/hn.mjs";
 
 const providers = {
     "nytimes": {
@@ -60,6 +61,27 @@ const providers = {
         ],
         source: async (data, mode, c) => {
             return await weather(
+                data,
+                mode,
+                c
+            );
+        },
+    },
+    "hn": {
+        async api(mode, c, headers) {
+            // Parse the API endpoint
+            let url = new URL(`https://hn.algolia.com/api/v1/search?tags=front_page`);
+
+            // Apply all args to the URL, allows for custom args
+            for (let arg of Object.entries(c.req.query())) {
+                url.searchParams.set(arg[0], arg[1]);
+            }
+
+            // Return the JSON data from the API
+            return await (await fetch(url, { headers })).json();
+        },
+        source: async (data, mode, c) => {
+            return await hn(
                 data,
                 mode,
                 c

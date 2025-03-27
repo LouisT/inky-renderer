@@ -4,6 +4,7 @@ import { basicAuth } from 'hono/basic-auth';
 import { transform, getFallbackResponse } from '../providers/utils.mjs';
 import allProviders from '../providers/index.mjs';
 import getBrowserSession from './libs/browser.mjs';
+import { patch } from './libs/patches.mjs';
 
 // Create versioned endpoint
 const v1 = new Hono().basePath('/api/v1');
@@ -32,6 +33,8 @@ v1.get('/render/:providers?/:raw?', async (c) => {
         },
         _raw = c.req.param('raw') == "raw",
         _json = c.req.query('json') == "true",
+        _isDev = c.env.DEVELOPMENT == "true",
+        _base = new URL(c.req.raw.url).origin,
         _provider;
 
     if (_providers) {
@@ -124,20 +127,9 @@ v1.get('/render/:providers?/:raw?', async (c) => {
                 // If render, set the page content
                 let $target;
                 if (_type == "render") {
-                    // Set the page content
-                    await page.setContent(await provider.source(data, _mode, c));
-
-                    // Apply baseurl to all assets
-                    await page.$$eval('script[src], link[rel="stylesheet"], img[src]', (elms, base) => elms.forEach(elm => {
-                        if (('src' in elm) && elm.src.startsWith('/')) {
-                            elm.src = new URL(elm.src, base).href;
-                        } else if (('href' in elm) && elm.href.startsWith('/')) {
-                            elm.href = new URL(elm.href, base).href;
-                        }
-                    }), c.env.BASEURL);
+                    await page.setContent(await patch(await provider.source(data, _mode, c), _base));
                 } else {
-                    // Go to the link
-                    await page.goto(await provider.link(_mode, c));
+                    await page.goto(await provider.link(_mode, c), { waitUntil: 'networkidle2' });
                 }
 
                 // Select the target element

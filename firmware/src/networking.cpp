@@ -141,12 +141,12 @@ esp_err_t DisplayImage(Inkplate &display, int rotation, const char *api, const J
         return ESP_ERR_INVALID_ARG;
     }
 
+    // Build the URL
     URLParser::Parser parsed(api);
     parsed.expandPath(basepath, endpoint);
-    parsed.setParam("rotation", String(rotation));
-    parsed.setParam("transform", "true");
 
     // Use rotation to pass the width and height of the board to support different aspect ratios
+    parsed.setParam("rotation", String(rotation));
     parsed.setParam("w", String(isPortrait ? E_INK_WIDTH : E_INK_HEIGHT));
     parsed.setParam("h", String(isPortrait ? E_INK_HEIGHT : E_INK_WIDTH));
     parsed.setParam("mbh", String(MSG_BOX_HEIGHT));

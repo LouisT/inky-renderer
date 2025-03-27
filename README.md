@@ -17,6 +17,9 @@ Firmware + remote rendering service for Inkplate devices via Cloudflare Workers.
     * 6COLOR only displays headlines (for now!?)
 2) Weather from [Visual Crossing](https://www.visualcrossing.com/) (/weather) - Inkplates: 10, 6COLOR
     * 6COLOR only displays the forecast for the next 3 days while in landscape.
+3) [Hacker News](https://news.ycombinator.com/) (/hn) - Inkplates: 10, 6COLOR
+    * Uses the [Algolia Search API](https://hn.algolia.com/api).
+    * Currently only supports the `/api/v1/search` endpoint. Example: `/render/hn?tags=story`
 
 ### Supported Devices
 1) [Inkplate 10](https://soldered.com/product/inkplate-10-9-7-e-paper-board-copy/)
