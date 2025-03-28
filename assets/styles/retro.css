@@ -524,3 +524,12 @@ article div.article-snippet div img {
 .fs-9xl {
     font-size: var(--font-9xl);
 }
+
+/* for raw home button */
+.home-btn {
+    position: absolute;
+    color: darkslategray;
+    top: 0;
+    left: 0;
+    padding: 5px;
+}

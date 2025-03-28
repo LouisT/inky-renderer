@@ -49,11 +49,19 @@ v1.get('/render/:providers?/:raw?', async (c) => {
     }
 
     // Get the provider
-    let provider = allProviders[_provider],
-        headers = new Headers([
-            ... (await provider.apiHeaders?.() ?? []),
-            ['User-Agent', c.req.header('User-Agent') ?? "Inky Renderer/v0.0.1-dev.1"],
-        ]);
+    let provider = allProviders[_provider];
+    if (provider.alias) {
+        provider = allProviders[provider.alias];
+        if (!provider) {
+            return getFallbackResponse(_mode, provider.alias);
+        }
+    }
+
+    // Get headers
+    let headers = new Headers([
+        ... (await provider.apiHeaders?.() ?? []),
+        ['User-Agent', c.req.header('User-Agent') ?? "Inky Renderer/v0.0.1-dev.1"],
+    ]);
 
     // Adjust the height based on mbh + offset
     if (_mode.mbh > 0 && provider.mbhOffset > 0)

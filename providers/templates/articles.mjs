@@ -13,15 +13,18 @@ export default async function (articles, mode, provider = false) {
         <link rel="stylesheet" href="/styles/queries.css" />
     </head>
     <body>
+        <a href="/" class="home-btn">Home</a>
         <div class="container">
             <div class="content">
                 <div class="articles">
                 ${articles.map((article) => html`
                     <article>
                         <div class="article-content">
-                            <h2 class="fs-xs">
-                                ${article.title}
-                            </h2>
+                            <a href="${article.url}" target="_blank">
+                                <h2 class="fs-xs">
+                                    ${article.title}
+                                </h2>
+                            </a>
                             <div class="article-snippet for-1200-825 for-825-1200" style="--display-mode:flex;">
                                 <img
                                     src="${article.multimedia.find?.(m => ["Large Thumbnail", "Standard Thumbnail", "Small Thumbnail"].includes(m.format))?.url}"

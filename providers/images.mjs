@@ -2,6 +2,7 @@ import { fallback, imgix } from "./utils.mjs";
 
 const providers = {
     "nasa": {
+        description: "NASA Astronomy Picture of the Day",
         mbhOffset: 2,
         api: async (mode, { env }, headers) => {
             // Parse the API endpoint
@@ -28,6 +29,7 @@ const providers = {
         },
     },
     "xkcd": {
+        description: "xkcd Comics",
         mbhOffset: 2,
         api: async (mode, { env }, headers) => {
             // A "hack" to get a random image from xkcd
@@ -57,6 +59,7 @@ const providers = {
         },
     },
     "unsplash": {
+        description: "Unsplash random images",
         mbhOffset: 2,
         api: async (mode, { env }, headers) => {
             // Parse the API endpoint
@@ -84,6 +87,7 @@ const providers = {
         }
     },
     "wallhaven": {
+        description: "Wallhaven random images",
         mbhOffset: 1,
         api: async (mode, { env, req }, headers) => {
             // Parse the API endpoint

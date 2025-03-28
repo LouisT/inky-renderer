@@ -4,6 +4,7 @@ import hn from "./templates/hn.mjs";
 
 const providers = {
     "nytimes": {
+        description: "The New York Times",
         api: async (mode, c, headers) => {
             // Get the section
             let section = c.req.query('section') || 'world';
@@ -68,6 +69,7 @@ const providers = {
         },
     },
     "hn": {
+        description: "Hacker News",
         async api(mode, c, headers) {
             // Parse the API endpoint
             let url = new URL(`https://hn.algolia.com/api/v1/search?tags=front_page`);
@@ -91,7 +93,9 @@ const providers = {
 }
 
 // Alias for nytimes
-providers.news = providers.nytimes;
+providers.news = {
+    alias: "nytimes"
+};
 
 export {
     providers as default,

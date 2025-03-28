@@ -9,6 +9,9 @@ const providers = {
     ...applyTypes(remoteRenders, "remote"), // Apply remote type to each provider
 };
 
+// Create an array of provider definitions with no aliases
+const definitions = Object.entries(providers).map(([name, value]) => ({ name, ...value })).filter(p => !p.alias)
+
 // Apply types to each provider object within the providers object
 function applyTypes(providers, _type = "image") {
     return Object.fromEntries(Object.entries(providers).map(([key, value]) => [key, { ...value, _type }]))
@@ -16,5 +19,6 @@ function applyTypes(providers, _type = "image") {
 
 export {
     providers as default,
-    providers
+    providers,
+    definitions
 }

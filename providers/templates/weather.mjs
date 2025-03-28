@@ -15,6 +15,7 @@ export default async function (data, mode) {
         <link rel="stylesheet" href="/styles/weather.css">
     </head>
     <body>
+        <a href="/" class="home-btn">Home</a>
         <div class="container">
             <div class="content sp:bg-2 sl:bg-2">
                 <div class="sp:color-5 sl:color-5" style="display:flex; flex-direction:column; align-items:center; margin-bottom:0.5rem; margin-top:1.2rem;">

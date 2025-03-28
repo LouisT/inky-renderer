@@ -15,6 +15,7 @@ export default async function (data, mode, c) {
         <link rel="stylesheet" href="/styles/queries.css" />
     </head>
     <body>
+        <a href="/" class="home-btn">Home</a>
         <div class="container">
             <div class="content">
                 <div class="articles" style="--gap:0.6rem;">
