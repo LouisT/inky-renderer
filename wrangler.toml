@@ -19,6 +19,9 @@ mode = "smart"
 directory = "./assets"
 binding = "ASSETS"
 
+[ai]
+binding = "AI"
+
 [env.dev]
 browser = { binding = "BROWSER" }
 kv_namespaces = [

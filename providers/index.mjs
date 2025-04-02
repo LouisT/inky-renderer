@@ -14,7 +14,7 @@ const definitions = Object.entries(providers).map(([name, value]) => ({ name, ..
 
 // Apply types to each provider object within the providers object
 function applyTypes(providers, _type = "image") {
-    return Object.fromEntries(Object.entries(providers).map(([key, value]) => [key, { ...value, _type }]))
+    return Object.fromEntries(Object.entries(providers).map(([key, value]) => [key, { ...value, _type: value?._type ?? _type }]))
 }
 
 export {

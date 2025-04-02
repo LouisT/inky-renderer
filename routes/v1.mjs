@@ -5,6 +5,7 @@ import { transform, getFallbackResponse } from '../providers/utils.mjs';
 import allProviders from '../providers/index.mjs';
 import getBrowserSession from './libs/browser.mjs';
 import { patch } from './libs/patches.mjs';
+import { pickOne } from './libs/utils.mjs';
 
 // Create versioned endpoint
 const v1 = new Hono().basePath('/api/v1');
@@ -35,13 +36,11 @@ v1.get('/render/:providers?/:raw?', async (c) => {
         _json = c.req.query('json') == "true",
         _isDev = c.env.DEVELOPMENT == "true",
         _base = new URL(c.req.raw.url).origin,
-        _provider;
-
-    if (_providers) {
-        _provider = (_providers.split(/[\|,\s]/gi)).sort(() => .5 - Math.random())[0];  // Get a random provider from a supplied list
-    } else {
-        _provider = Object.keys(allProviders).sort(() => .5 - Math.random())[0];  // Get a random provider
-    }
+        _provider = pickOne(
+            _providers
+                ? _providers.split(/[\|,\s]/gi) // Split by pipe, comma, or space
+                : Object.keys(allProviders) // Otherwise, use all providers available
+        );
 
     // If the provider doesn't exist, use Lorem Picsum
     if (!allProviders[_provider]) {
@@ -87,7 +86,7 @@ v1.get('/render/:providers?/:raw?', async (c) => {
         let _type = String(provider._type).toLowerCase();
 
         // If raw, return the data
-        if (_raw)
+        if (_raw && data)
             return (_type == "render" && !_json ?
                 c.html(await provider.source(data, _mode, c))
                 : c.json(data));
@@ -116,18 +115,33 @@ v1.get('/render/:providers?/:raw?', async (c) => {
                     ]),
                 });
 
+            // Handle AI calls for images
+            case "image:ai":
+                // Fetch the image + return to the client
+                return new Response((await provider.request(_mode, c)).body, {
+                    headers: new Headers([
+                        ["Content-Type", "image/jpeg"],
+                        ["X-Image-Size", `${_mode.w}x${_mode.h}`],
+                        ["X-Image-Provider", _provider],
+                        ["X-Inky-Message-2", "AI Generated Image"],
+                    ]),
+                });
+
             // Handle Browser Rendering calls
             case "render":
             case "remote":
                 // Create a browser session
-                let browser;
+                let _browser;
                 try {
-                    browser = await puppeteer.connect(c.env.BROWSER, (await getBrowserSession(c.env.BROWSER)));
-                } catch { /* Ignore */ }
-                browser = browser ?? await puppeteer.launch(c.env.BROWSER);
+                    _browser = await puppeteer.connect(c.env.BROWSER, (await getBrowserSession(c.env.BROWSER)));
+                } catch {
+                    _browser = undefined;
+                    /* Ignore */
+                }
+                _browser = _browser ?? await puppeteer.launch(c.env.BROWSER);
 
                 // Create a new page
-                let page = await browser.newPage();
+                let page = await _browser.newPage();
 
                 // Set the viewport, with a 5px buffer
                 await page.setViewport({ width: _mode.w + 5, height: _mode.h + 5 });
@@ -135,7 +149,7 @@ v1.get('/render/:providers?/:raw?', async (c) => {
                 // If render, set the page content
                 let $target;
                 if (_type == "render") {
-                    await page.setContent(await patch(await provider.source(data, _mode, c), _base));
+                    await page.setContent(await patch(await provider.source(data, _mode, c), _base), { waitUntil: 'networkidle2' });
                 } else {
                     await page.goto(await provider.link(_mode, c), { waitUntil: 'networkidle2' });
                 }
@@ -164,7 +178,7 @@ v1.get('/render/:providers?/:raw?', async (c) => {
                 }, (await provider?.options?.(_mode, c) ?? {}))));
 
                 // Disconnect and free up resources
-                await browser.disconnect();
+                await _browser.disconnect();
 
                 // Take the screenshot + return to the client
                 return new Response(screenshot, {
@@ -184,6 +198,40 @@ v1.get('/render/:providers?/:raw?', async (c) => {
         console.trace(e);
         return getFallbackResponse(_mode, _provider);
     }
+});
+
+// AI slop; use AI to generate a random image.
+// This is because you can't send Authorization headers with Image Transform.
+v1.get('/_ai/slop/:auth?', async (c) => {
+    // Check auth
+    if (c.env.SLOP_ACCESS_KEY) {
+        if (c.req.param('auth') != c.env.SLOP_ACCESS_KEY) {
+            return new Response("Unauthorized", { status: 401 });
+        }
+    }
+
+    // Generate the image
+    return fetch(
+        "https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image",
+        {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "image/png",
+                "Authorization": `Bearer ${c.env.STABILITY_API_KEY}`,
+            },
+            body: JSON.stringify({
+                text_prompts: [{
+                    text: (await c.env.AI.run(c.env.SLOP_PROMPT_MODEL, {
+                        max_tokens: 256,
+                        messages: [
+                            { role: "system", content: "You are an artist. You respond in no more than 100 words." },
+                            { role: "user", content: "Describe a completely random scene as if it were an image. Envision any subject matter, in any art style, color palette, or composition. Provide a vivid, open-ended textual description that embodies pure spontaneity and unpredictability, focusing on the details and emotions evoked rather than actually creating or illustrating the image." },
+                        ],
+                    })).response
+                }],
+            }),
+        });
 });
 
 // Export v1

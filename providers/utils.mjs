@@ -34,12 +34,12 @@ export function imgix(img, mode) {
 }
 
 // Apply Cloudflare args to the image
-export function transform(mode, _headers = []) {
+export function transform(mode, _headers = [], fit = "pad") {
     return {
         cf: {
             image: {
                 format: "baseline-jpeg",
-                fit: "pad",
+                fit,
                 background: "#FFF", // Default to white for cleaner inkplate messages
                 width: mode.w,
                 height: mode.h,

@@ -1,4 +1,4 @@
-import { fallback, imgix } from "./utils.mjs";
+import { fallback, imgix, transform } from "./utils.mjs";
 
 const providers = {
     "nasa": {
@@ -115,6 +115,26 @@ const providers = {
             return new URL(data?.[0]?.path ?? fallback(mode));
         }
     },
+    "ai-slop": {
+        _type: "image:ai",
+        description: "Use AI to generate a random image (slop)",
+        mbhOffset: 1,
+        request: async (mode, c) => {
+            // Generate the endpoint
+            // XXX: This could AND should be improved
+            let endpoint = `${ new URL(c.req.raw.url).origin }/api/v1/_ai/slop${c.env.SLOP_ACCESS_KEY ? `/${c.env.SLOP_ACCESS_KEY}` : ''}`;
+            endpoint += `?${ new URLSearchParams(mode).toString() }`;
+
+            // Return the fetch response
+            return fetch(endpoint, {
+                cf: {
+                    cacheTtlByStatus: { "200-299": 1800, 404: 30, "500-599": 30 },
+                    cacheEverything: true,
+                    ...(transform(mode, ['X-Inky-Message-2'], "cover").cf ?? {}),
+                }
+            })
+        }
+    }
 }
 
 export {
