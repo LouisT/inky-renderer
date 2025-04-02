@@ -122,8 +122,9 @@ const providers = {
         request: async (mode, c) => {
             // Generate the endpoint
             // XXX: This could AND should be improved
-            let endpoint = `${ new URL(c.req.raw.url).origin }/api/v1/_ai/slop${c.env.SLOP_ACCESS_KEY ? `/${c.env.SLOP_ACCESS_KEY}` : ''}`;
-            endpoint += `?${ new URLSearchParams(mode).toString() }`;
+            let endpoint = `${new URL(c.req.raw.url).origin}/api/v1/_ai/slop`;
+            endpoint += c.env.SLOP_ACCESS_KEY ? `/${c.env.SLOP_ACCESS_KEY}?` : '?';
+            endpoint += new URLSearchParams(mode).toString();
 
             // Return the fetch response
             return fetch(endpoint, {

@@ -5,7 +5,7 @@ import { transform, getFallbackResponse } from '../providers/utils.mjs';
 import allProviders from '../providers/index.mjs';
 import getBrowserSession from './libs/browser.mjs';
 import { patch } from './libs/patches.mjs';
-import { pickOne } from './libs/utils.mjs';
+import { pickOne, b64png } from './libs/utils.mjs';
 
 // Create versioned endpoint
 const v1 = new Hono().basePath('/api/v1');
@@ -107,7 +107,7 @@ v1.get('/render/:providers?/:raw?', async (c) => {
                     ...transform(_mode, _headers),
                 })).body, {
                     headers: new Headers([
-                        ["Content-Type", "image/jpeg"],
+                        ["Content-Type", _raw ? "text/plain" : "image/jpeg"],
                         ["X-Image-Size", `${_mode.w}x${_mode.h}`],
                         ["X-Image-Source", img.toLocaleString()],
                         ["X-Image-Provider", _provider],
@@ -195,13 +195,14 @@ v1.get('/render/:providers?/:raw?', async (c) => {
                 return getFallbackResponse(_mode, _provider);
         }
     } catch (e) {
-        console.trace(e);
+        console.log(e);
         return getFallbackResponse(_mode, _provider);
     }
 });
 
 // AI slop; use AI to generate a random image.
 // This is because you can't send Authorization headers with Image Transform.
+
 v1.get('/_ai/slop/:auth?', async (c) => {
     // Check auth
     if (c.env.SLOP_ACCESS_KEY) {
@@ -210,28 +211,22 @@ v1.get('/_ai/slop/:auth?', async (c) => {
         }
     }
 
+    // Check if AI exists
+    if (!c?.env?.AI)
+        return new Response("AI not found", { status: 404 });
+
     // Generate the image
-    return fetch(
-        "https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image",
+    return b64png((await c.env.AI.run(
+        c.env.SLOP_IMAGE_MODEL,
         {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Accept": "image/png",
-                "Authorization": `Bearer ${c.env.STABILITY_API_KEY}`,
-            },
-            body: JSON.stringify({
-                text_prompts: [{
-                    text: (await c.env.AI.run(c.env.SLOP_PROMPT_MODEL, {
-                        max_tokens: 256,
-                        messages: [
-                            { role: "system", content: "You are an artist. You respond in no more than 100 words." },
-                            { role: "user", content: "Describe a completely random scene as if it were an image. Envision any subject matter, in any art style, color palette, or composition. Provide a vivid, open-ended textual description that embodies pure spontaneity and unpredictability, focusing on the details and emotions evoked rather than actually creating or illustrating the image." },
-                        ],
-                    })).response
-                }],
-            }),
-        });
+            prompt: (await c.env.AI.run(c.env.SLOP_PROMPT_MODEL, {
+                max_tokens: 256,
+                messages: [
+                    { role: "system", content: "You are an artist. You respond in no more than 100 words." },
+                    { role: "user", content: "Describe a completely random scene as if it were an image. Envision any subject matter, in any art style, color palette, or composition. Provide a vivid, open-ended textual description that embodies pure spontaneity and unpredictability, focusing on the details and emotions evoked rather than actually creating or illustrating the image." },
+                ],
+            })).response
+        })).image);
 });
 
 // Export v1
