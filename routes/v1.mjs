@@ -202,29 +202,26 @@ v1.get('/render/:providers?/:raw?', async (c) => {
 
 // AI slop; use AI to generate a random image.
 // This is because you can't send Authorization headers with Image Transform.
-
+// XXX: Replace errors with fallback image?
 v1.get('/_ai/slop/:auth?', async (c) => {
     // Check auth
-    if (c.env.SLOP_ACCESS_KEY) {
-        if (c.req.param('auth') != c.env.SLOP_ACCESS_KEY) {
-            return new Response("Unauthorized", { status: 401 });
-        }
-    }
+    if (c.env.SLOP_ACCESS_KEY && c.req.param('auth') != c.env.SLOP_ACCESS_KEY)
+        return new Response("Unauthorized", { status: 401 });
 
     // Check if AI exists
     if (!c?.env?.AI)
-        return new Response("AI not found", { status: 404 });
+        return new Response("AI not enabled", { status: 404 });
 
     // Generate the image
-    return b64png((await c.env.AI.run(
-        c.env.SLOP_IMAGE_MODEL,
-        {
+    return b64png((await c.env.AI.run(c.env.SLOP_IMAGE_MODEL, {
             prompt: (await c.env.AI.run(c.env.SLOP_PROMPT_MODEL, {
                 max_tokens: 256,
                 messages: [
                     { role: "system", content: "You are an artist. You respond in no more than 100 words." },
-                    { role: "user", content: "Describe a completely random scene as if it were an image. Envision any subject matter, in any art style, color palette, or composition. Provide a vivid, open-ended textual description that embodies pure spontaneity and unpredictability, focusing on the details and emotions evoked rather than actually creating or illustrating the image." },
+                    { role: "user", content: "Describe a completely random scene as if it were an image. Envision any subject matter, in any art style, color palette, or composition. Provide a vivid, open-ended textual description that embodies pure spontaneity and unpredictability, focusing on the details." },
                 ],
+                seed: ~~(Math.random() * 100000000),
+                temperature: 1,
             })).response
         })).image);
 });

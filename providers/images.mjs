@@ -120,6 +120,9 @@ const providers = {
         description: "Use AI to generate a random image (slop)",
         mbhOffset: 1,
         request: async (mode, c) => {
+            // Check if caching is disabled
+            let cacheEverything = c.req.query('cache') == "false" ? false : true;
+
             // Generate the endpoint
             // XXX: This could AND should be improved
             let endpoint = `${new URL(c.req.raw.url).origin}/api/v1/_ai/slop`;
@@ -130,7 +133,7 @@ const providers = {
             return fetch(endpoint, {
                 cf: {
                     cacheTtlByStatus: { "200-299": 1800, 404: 30, "500-599": 30 },
-                    cacheEverything: true,
+                    cacheEverything,
                     ...(transform(mode, ['X-Inky-Message-2'], "cover").cf ?? {}),
                 }
             })
