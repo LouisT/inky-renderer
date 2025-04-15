@@ -1,5 +1,3 @@
-// TODO: Misc utils for providers
-
 // Fallback image
 export function fallback(mode) {
     return `https://picsum.photos/${mode.w}/${mode.h}/?blur=5&grayscale`;
@@ -53,4 +51,47 @@ export function transform(mode, _headers = [], fit = "pad") {
             }
         }
     }
+}
+
+// Convert base65 string to PNG
+export function b64png(b64) {
+    return new Response(Uint8Array.from(atob(b64.replace(/^data:image\/png;base64,/, '')), char => char.charCodeAt(0)), {
+        headers: { 'Content-Type': 'image/png' }
+    });
+}
+
+
+// Convert a Response to a ReadableStream
+export function responseToReadableStream(response) {
+    // If there's already a ReadableStream, you can simply return `response.body`:
+    if (!response.body) {
+        throw new Error("The response has no body or the body was already consumed.");
+    }
+
+    return new ReadableStream({
+        async start(controller) {
+            const reader = response.body.getReader();
+
+            // Continuously pump from the reader until there is no more data
+            async function pump() {
+                const { done, value } = await reader.read();
+                if (done) {
+                    // Signal that we're done reading
+                    controller.close();
+                    return;
+                }
+                // Enqueue the current chunk and read the next
+                controller.enqueue(value);
+                return pump();
+            }
+
+            // Start reading
+            return pump();
+        }
+    });
+}
+
+// A basic function to pick a random element from an array
+export function pickOne(arr = []) {
+    return arr[Math.floor(Math.random() * arr.length)];
 }

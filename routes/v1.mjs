@@ -1,11 +1,17 @@
 import { Hono } from 'hono';
 import puppeteer from "@cloudflare/puppeteer";
 import { basicAuth } from 'hono/basic-auth';
-import { transform, getFallbackResponse } from '../providers/utils.mjs';
 import allProviders from '../providers/index.mjs';
 import getBrowserSession from './libs/browser.mjs';
 import { patch } from './libs/patches.mjs';
-import { pickOne, b64png } from './libs/utils.mjs';
+import { cache } from 'hono/cache';
+import {
+    transform,
+    getFallbackResponse,
+    pickOne,
+    b64png,
+    responseToReadableStream
+} from '../providers/utils.mjs';
 
 // Create versioned endpoint
 const v1 = new Hono().basePath('/api/v1');
@@ -22,6 +28,41 @@ v1.use("/*", async (c, next) => {
         return c.text("Users not found.");
     }
     return basicAuth(...users.map(([username, password]) => ({ username, password })))(c, next)
+});
+
+// Hardcode AI slop provider with Cloudflare AI
+v1.get('/render/ai-slop/:raw?', cache({ cacheName: "ai-slop", cacheControl: 'max-age=1800' }), async (c) => {
+    let _mode = {
+        w: parseInt(c.req.query('w') ?? 1200),
+        h: parseInt(c.req.query('h') ?? 825),
+        mbh: parseInt(c.req.query('mbh') ?? 0),
+    };
+
+    if (!c?.env?.AI || !c?.env?.SLOP_IMAGE_MODEL || !c?.env?.SLOP_PROMPT_MODEL)
+        return getFallbackResponse(_mode, "ai-slop");
+
+    return new Response(((
+        await c.env.IMAGES.input(responseToReadableStream(b64png((await c.env.AI.run(c.env.SLOP_IMAGE_MODEL, {
+            prompt: (await c.env.AI.run(c.env.SLOP_PROMPT_MODEL, {
+                max_tokens: 256,
+                messages: [
+                    { role: "system", content: "You are an artist. You respond in no more than 100 words." },
+                    { role: "user", content: "Describe a completely random scene as if it were an image. Envision any subject matter, in any art style, color palette, or composition. Provide a vivid, open-ended textual description that embodies pure spontaneity and unpredictability, focusing on the details." },
+                ],
+                seed: ~~(Math.random() * 100000000),
+                temperature: 1,
+            })).response
+        })).image)))
+            .transform(transform(_mode, ['X-Inky-Message-2'], "cover").cf?.image ?? {})
+            .output({ format: "image/jpeg" })
+    ).response()).body, {
+        headers: new Headers([
+            ["Content-Type", "image/jpeg"],
+            ["X-Image-Size", `${_mode.w}x${_mode.h}`],
+            ["X-Image-Provider", "AI Slop"],
+            ['X-Inky-Message-2', "AI Generated Image"],
+        ])
+    });
 });
 
 // Content rendering endpoint
@@ -43,9 +84,8 @@ v1.get('/render/:providers?/:raw?', async (c) => {
         );
 
     // If the provider doesn't exist, use Lorem Picsum
-    if (!allProviders[_provider]) {
+    if (!allProviders[_provider])
         return getFallbackResponse(_mode, _provider);
-    }
 
     // Get the provider
     let provider = allProviders[_provider];
@@ -112,18 +152,6 @@ v1.get('/render/:providers?/:raw?', async (c) => {
                         ["X-Image-Source", img.toLocaleString()],
                         ["X-Image-Provider", _provider],
                         ..._headers,
-                    ]),
-                });
-
-            // Handle AI calls for images
-            case "image:ai":
-                // Fetch the image + return to the client
-                return new Response((await provider.request(_mode, c)).body, {
-                    headers: new Headers([
-                        ["Content-Type", "image/jpeg"],
-                        ["X-Image-Size", `${_mode.w}x${_mode.h}`],
-                        ["X-Image-Provider", _provider],
-                        ["X-Inky-Message-2", "AI Generated Image"],
                     ]),
                 });
 
@@ -198,32 +226,6 @@ v1.get('/render/:providers?/:raw?', async (c) => {
         console.log(e);
         return getFallbackResponse(_mode, _provider);
     }
-});
-
-// AI slop; use AI to generate a random image.
-// This is because you can't send Authorization headers with Image Transform.
-// XXX: Replace errors with fallback image?
-v1.get('/_ai/slop/:auth?', async (c) => {
-    // Check auth
-    if (c.env.SLOP_ACCESS_KEY && c.req.param('auth') != c.env.SLOP_ACCESS_KEY)
-        return new Response("Unauthorized", { status: 401 });
-
-    // Check if AI exists
-    if (!c?.env?.AI)
-        return new Response("AI not enabled", { status: 404 });
-
-    // Generate the image
-    return b64png((await c.env.AI.run(c.env.SLOP_IMAGE_MODEL, {
-            prompt: (await c.env.AI.run(c.env.SLOP_PROMPT_MODEL, {
-                max_tokens: 256,
-                messages: [
-                    { role: "system", content: "You are an artist. You respond in no more than 100 words." },
-                    { role: "user", content: "Describe a completely random scene as if it were an image. Envision any subject matter, in any art style, color palette, or composition. Provide a vivid, open-ended textual description that embodies pure spontaneity and unpredictability, focusing on the details." },
-                ],
-                seed: ~~(Math.random() * 100000000),
-                temperature: 1,
-            })).response
-        })).image);
 });
 
 // Export v1
