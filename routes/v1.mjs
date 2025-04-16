@@ -4,7 +4,6 @@ import { basicAuth } from 'hono/basic-auth';
 import allProviders from '../providers/index.mjs';
 import getBrowserSession from './libs/browser.mjs';
 import { patch } from './libs/patches.mjs';
-import { cache } from 'hono/cache';
 import {
     transform,
     getFallbackResponse,
@@ -30,41 +29,6 @@ v1.use("/*", async (c, next) => {
     return basicAuth(...users.map(([username, password]) => ({ username, password })))(c, next)
 });
 
-// Hardcode AI slop provider with Cloudflare AI
-v1.get('/render/ai-slop/:raw?', cache({ cacheName: "ai-slop", cacheControl: 'max-age=1800' }), async (c) => {
-    let _mode = {
-        w: parseInt(c.req.query('w') ?? 1200),
-        h: parseInt(c.req.query('h') ?? 825),
-        mbh: parseInt(c.req.query('mbh') ?? 0),
-    };
-
-    if (!c?.env?.AI || !c?.env?.SLOP_IMAGE_MODEL || !c?.env?.SLOP_PROMPT_MODEL)
-        return getFallbackResponse(_mode, "ai-slop");
-
-    return new Response(((
-        await c.env.IMAGES.input(responseToReadableStream(b64png((await c.env.AI.run(c.env.SLOP_IMAGE_MODEL, {
-            prompt: (await c.env.AI.run(c.env.SLOP_PROMPT_MODEL, {
-                max_tokens: 256,
-                messages: [
-                    { role: "system", content: "You are an artist. You respond in no more than 100 words." },
-                    { role: "user", content: "Describe a completely random scene as if it were an image. Envision any subject matter, in any art style, color palette, or composition. Provide a vivid, open-ended textual description that embodies pure spontaneity and unpredictability, focusing on the details." },
-                ],
-                seed: ~~(Math.random() * 100000000),
-                temperature: 1,
-            })).response
-        })).image)))
-            .transform(transform(_mode, ['X-Inky-Message-2'], "cover").cf?.image ?? {})
-            .output({ format: "image/jpeg" })
-    ).response()).body, {
-        headers: new Headers([
-            ["Content-Type", "image/jpeg"],
-            ["X-Image-Size", `${_mode.w}x${_mode.h}`],
-            ["X-Image-Provider", "AI Slop"],
-            ['X-Inky-Message-2', "AI Generated Image"],
-        ])
-    });
-});
-
 // Content rendering endpoint
 v1.get('/render/:providers?/:raw?', async (c) => {
     let _providers = c.req.param('providers'),
@@ -82,6 +46,35 @@ v1.get('/render/:providers?/:raw?', async (c) => {
                 ? _providers.split(/[\|,\s]/gi) // Split by pipe, comma, or space
                 : Object.keys(allProviders) // Otherwise, use all providers available
         );
+
+    // If the provider is "ai-slop", return the AI slop endpoint
+    if (_provider == "ai-slop") {
+        if (!c?.env?.AI || !c?.env?.SLOP_IMAGE_MODEL || !c?.env?.SLOP_PROMPT_MODEL)
+            return getFallbackResponse(_mode, "ai-slop");
+
+        return new Response(((
+            await c.env.IMAGES.input(responseToReadableStream(b64png((await c.env.AI.run(c.env.SLOP_IMAGE_MODEL, {
+                prompt: (await c.env.AI.run(c.env.SLOP_PROMPT_MODEL, {
+                    max_tokens: 256,
+                    messages: [
+                        { role: "system", content: "You are an artist. You respond in no more than 100 words." },
+                        { role: "user", content: "Describe a completely random scene as if it were an image. Envision any subject matter, in any art style, color palette, or composition. Provide a vivid, open-ended textual description that embodies pure spontaneity and unpredictability, focusing on the details." },
+                    ],
+                    seed: ~~(Math.random() * 100000000),
+                    temperature: 1,
+                })).response
+            })).image)))
+                .transform(transform(_mode, ['X-Inky-Message-2'], "cover").cf?.image ?? {})
+                .output({ format: "image/jpeg" })
+        ).response()).body, {
+            headers: new Headers([
+                ["Content-Type", "image/jpeg"],
+                ["X-Image-Size", `${_mode.w}x${_mode.h}`],
+                ["X-Image-Source", "AI Slop"],
+                ['X-Inky-Message-2', "AI Generated Image"],
+            ])
+        });
+    }
 
     // If the provider doesn't exist, use Lorem Picsum
     if (!allProviders[_provider])

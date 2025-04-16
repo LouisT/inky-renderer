@@ -6,6 +6,7 @@
 #include <esp_err.h>
 #include <ArduinoJson.h>
 #include <PubSubClient.h>
+#include <vector>
 
 #include "networking.h"
 #include "logger.h"
@@ -13,13 +14,14 @@
 #include "definitions.h"
 
 const char *displayHeaders[] = {
-    "Content-Type",     // Must be image/jpeg
-    "Content-Length",   // Use this to determine size
-    "X-Image-Source",   // URL of the image, for logging
-    "X-No-Dithering",   // Disable dithering on the display if set to true
-    "X-Inky-Message-0", // Fow showing a message on the display (top)
-    "X-Inky-Message-1", // Fow showing a message on the display (middle)
-    "X-Inky-Message-2", // Fow showing a message on the display (bottom)
+    "Content-Type",      // Must be image/jpeg
+    "Content-Length",    // Use this to determine size
+    "Transfer-Encoding", // Use this to determine if a chunked transfer is used
+    "X-Image-Source",    // URL of the image, for logging
+    "X-No-Dithering",    // Disable dithering on the display if set to true
+    "X-Inky-Message-0",  // Fow showing a message on the display (top)
+    "X-Inky-Message-1",  // Fow showing a message on the display (middle)
+    "X-Inky-Message-2",  // Fow showing a message on the display (bottom)
 };
 
 // Create both a non-secure and a secure Wi-Fi client
@@ -120,6 +122,58 @@ esp_err_t MqttConnect(const JsonVariant &mqttConfig)
     return ESP_OK;
 }
 
+// If Transfer-Encoding is chunked, read the stream until CRLF
+std::vector<uint8_t> readChunkedStream(WiFiClient *stream, unsigned long timeoutMillis)
+{
+    std::vector<uint8_t> output;
+    unsigned long deadline = millis() + timeoutMillis;
+
+    // Read chunk header, then the chunk data, then skip CRLF
+    while (millis() < deadline)
+    {
+        // Read a line (ends with '\n') that contains the hexadecimal chunk size
+        String line = stream->readStringUntil('\n');
+        line.trim(); // Remove any whitespace and the carriage return
+
+        // If we got an empty line, break out (may be end or timeout)
+        if (line.length() == 0)
+        {
+            break;
+        }
+
+        // Convert the header line from hexadecimal to an integer
+        long chunkSize = strtol(line.c_str(), NULL, 16);
+
+        // If the chunk size is invalid, break out
+        if (chunkSize <= 0)
+        {
+            break;
+        }
+
+        // Read the chunk data.
+        size_t remaining = chunkSize;
+        while (remaining > 0 && millis() < deadline)
+        {
+            // Use a fixed-size buffer for each read iteration
+            uint8_t buf[256];
+            size_t toRead = remaining < sizeof(buf) ? remaining : sizeof(buf);
+            int bytesRead = stream->readBytes(buf, toRead);
+            if (bytesRead <= 0)
+            {
+                // No bytes read (error or timeout)
+                break;
+            }
+            output.insert(output.end(), buf, buf + bytesRead);
+            remaining -= bytesRead;
+        }
+
+        // Discard the trailing CRLF following the chunk.
+        // (We read until '\n' so the line-ending should be consumed.)
+        stream->readStringUntil('\n');
+    }
+    return output;
+}
+
 // Fetch a remote jpeg image and display it on the screen
 esp_err_t DisplayImage(Inkplate &display, int rotation, const char *api, const JsonVariant &imageConfig, const char *endpoint)
 {
@@ -198,12 +252,14 @@ esp_err_t DisplayImage(Inkplate &display, int rotation, const char *api, const J
 
             // Attempt to fetch the Content-Length
             int32_t contentLength = https.getSize();
+            String transferEncoding = https.header("Transfer-Encoding");
+            bool isChunked = transferEncoding.indexOf("chunked") >= 0;
             if (contentLength <= 0 && https.hasHeader("Content-Length"))
             {
                 contentLength = atoi(https.header("Content-Length").c_str());
             }
 
-            // If we do have a Content-Length, do a sanity check
+            // If we do have a known Content-Length, do a sanity check
             if (contentLength > 0 && contentLength > (E_INK_WIDTH * E_INK_HEIGHT * 8 + 100))
             {
                 Logger::log(Logger::LOG_ERROR, "Invalid (too large) Content-Length; try again..");
@@ -222,76 +278,65 @@ esp_err_t DisplayImage(Inkplate &display, int rotation, const char *api, const J
 
             unsigned long startMillis = millis();
             unsigned long timeoutMillis = timeout * 1000;
-
             std::vector<uint8_t> imageBuffer;
-            if (contentLength > 0)
+
+            // If chunked, read the stream until CRLF
+            if (isChunked)
             {
-                // If we know how big it is, reserve to reduce allocations
-                imageBuffer.reserve(contentLength);
+                imageBuffer = readChunkedStream(stream, timeoutMillis);
             }
-
-            const size_t CHUNK_SIZE = 1024;
-            size_t totalBytesRead = 0;
-
-            while ((millis() - startMillis) < timeoutMillis)
+            else
             {
-                size_t availableBytes = stream->available();
-                if (availableBytes > 0)
-                {
-                    uint8_t temp[CHUNK_SIZE];
-                    size_t toRead = (availableBytes > CHUNK_SIZE) ? CHUNK_SIZE : availableBytes;
+                const size_t CHUNK_SIZE = 1024;
+                size_t totalBytesRead = 0;
+                imageBuffer.reserve(contentLength);
 
-                    // If we have a known contentLength, be sure not to exceed it
-                    if (contentLength > 0)
+                // Loop until either the timeout is reached or all expected data has been read.
+                while ((millis() - startMillis) < timeoutMillis)
+                {
+                    // Check how many bytes are currently available in the stream
+                    size_t availableBytes = stream->available();
+                    if (availableBytes > 0)
                     {
-                        size_t bytesRemaining = contentLength - totalBytesRead;
-                        if (bytesRemaining < toRead)
+                        // Create a temporary buffer to hold data read from the stream
+                        uint8_t temp[CHUNK_SIZE];
+
+                        // Determine the number of bytes to read this iteration
+                        size_t toRead = (availableBytes > CHUNK_SIZE) ? CHUNK_SIZE : availableBytes;
+
+                        // If reading 'toRead' bytes would exceed the total expected content length,
+                        // then adjust to only read the remaining bytes
+                        if (toRead > (contentLength - totalBytesRead))
                         {
-                            toRead = bytesRemaining;
+                            toRead = contentLength - totalBytesRead;
+                        }
+
+                        // Attempt to read 'toRead' bytes from the stream into the temporary buffer
+                        int bytesReadNow = stream->readBytes(temp, toRead);
+                        if (bytesReadNow <= 0)
+                        {
+                            Logger::log(Logger::LOG_ERROR, "Stream read failed");
+                            break;
+                        }
+
+                        // Append the bytes successfully read into the imageBuffer
+                        imageBuffer.insert(imageBuffer.end(), temp, temp + bytesReadNow);
+                        totalBytesRead += bytesReadNow;
+
+                        // If we have read the entire expected content length, exit the loop
+                        if (totalBytesRead >= (size_t)contentLength)
+                        {
+                            break;
                         }
                     }
-
-                    int bytesReadNow = stream->readBytes(temp, toRead);
-                    if (bytesReadNow <= 0)
+                    else
                     {
-                        Logger::log(Logger::LOG_ERROR, "Stream read failed");
-                        break;
-                    }
-
-                    // Append chunk to vector
-                    imageBuffer.insert(imageBuffer.end(), temp, temp + bytesReadNow);
-                    totalBytesRead += bytesReadNow;
-
-                    // If we have read all data according to contentLength, break
-                    if (contentLength > 0 && totalBytesRead >= (size_t)contentLength)
-                    {
-                        break;
+                        // If no data is currently available, check if the HTTP connection is still alive
+                        if (!https.connected())
+                            break;
+                        delay(10);
                     }
                 }
-                else
-                {
-                    // If the connection is closed but there's no more data, break out
-                    if (!https.connected())
-                    {
-                        break;
-                    }
-                    // Otherwise, wait briefly for more data
-                    delay(10);
-                }
-            }
-
-            // Verify if we got the complete image
-            if (contentLength > 0 && totalBytesRead != (size_t)contentLength)
-            {
-                Logger::log(Logger::LOG_ERROR, "Incomplete image download according to Content-Length");
-                https.end();
-                continue; // try again
-            }
-            else if (imageBuffer.empty())
-            {
-                Logger::log(Logger::LOG_ERROR, "No data read from stream");
-                https.end();
-                continue; // try again
             }
 
             // Clear the screen before drawing
@@ -303,7 +348,7 @@ esp_err_t DisplayImage(Inkplate &display, int rotation, const char *api, const J
             {
                 dither = 0;
             }
-            Logger::logf(Logger::LOG_DEBUG, "Dithering: %d", dither);
+            Logger::logf(Logger::LOG_DEBUG, "Dithering: %d / Chunked: %d / Image size: %d", dither, isChunked, imageBuffer.size());
 
             // Display the raw jpeg image from the buffer
             if (display.drawJpegFromBuffer(imageBuffer.data(), imageBuffer.size(), 0, 0, dither, 0))
@@ -323,7 +368,6 @@ esp_err_t DisplayImage(Inkplate &display, int rotation, const char *api, const J
                 https.end();
                 return ESP_OK;
             }
-
             Logger::log(Logger::LOG_ERROR, "Failed to render JPEG image");
         }
         else
