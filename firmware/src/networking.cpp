@@ -339,6 +339,14 @@ esp_err_t DisplayImage(Inkplate &display, int rotation, const char *api, const J
                 }
             }
 
+            // Verify that we actually got some data
+            if (imageBuffer.empty())
+            {
+                Logger::log(Logger::LOG_ERROR, "No data read from stream");
+                https.end();
+                continue; // try again
+            }
+
             // Clear the screen before drawing
             display.clearDisplay();
 
