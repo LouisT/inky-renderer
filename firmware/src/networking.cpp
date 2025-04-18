@@ -12,6 +12,7 @@
 #include "logger.h"
 #include "urlparser.h"
 #include "definitions.h"
+#include "jpeg_utils.h"
 
 const char *displayHeaders[] = {
     "Content-Type",      // Must be image/jpeg
@@ -122,56 +123,113 @@ esp_err_t MqttConnect(const JsonVariant &mqttConfig)
     return ESP_OK;
 }
 
-// If Transfer-Encoding is chunked, read the stream until CRLF
-std::vector<uint8_t> readChunkedStream(WiFiClient *stream, unsigned long timeoutMillis)
+// Read a stream into a buffer, used to pull remote images
+std::vector<uint8_t> readStream(WiFiClient &stream,
+                                unsigned long timeoutMillis,
+                                bool isChunked = true,
+                                size_t contentLength = 0)
 {
-    std::vector<uint8_t> output;
-    unsigned long deadline = millis() + timeoutMillis;
+    std::vector<uint8_t> out;
+    unsigned long start = millis();
+    unsigned long deadline = start + timeoutMillis;
 
-    // Read chunk header, then the chunk data, then skip CRLF
-    while (millis() < deadline)
+    // If we know the total length up front, reserve once
+    if (!isChunked && contentLength > 0)
     {
-        // Read a line (ends with '\n') that contains the hexadecimal chunk size
-        String line = stream->readStringUntil('\n');
-        line.trim(); // Remove any whitespace and the carriage return
-
-        // If we got an empty line, break out (may be end or timeout)
-        if (line.length() == 0)
-        {
-            break;
-        }
-
-        // Convert the header line from hexadecimal to an integer
-        long chunkSize = strtol(line.c_str(), NULL, 16);
-
-        // If the chunk size is invalid, break out
-        if (chunkSize <= 0)
-        {
-            break;
-        }
-
-        // Read the chunk data.
-        size_t remaining = chunkSize;
-        while (remaining > 0 && millis() < deadline)
-        {
-            // Use a fixed-size buffer for each read iteration
-            uint8_t buf[256];
-            size_t toRead = remaining < sizeof(buf) ? remaining : sizeof(buf);
-            int bytesRead = stream->readBytes(buf, toRead);
-            if (bytesRead <= 0)
-            {
-                // No bytes read (error or timeout)
-                break;
-            }
-            output.insert(output.end(), buf, buf + bytesRead);
-            remaining -= bytesRead;
-        }
-
-        // Discard the trailing CRLF following the chunk.
-        // (We read until '\n' so the line-ending should be consumed.)
-        stream->readStringUntil('\n');
+        out.reserve(contentLength);
     }
-    return output;
+
+    // A single reusable read buffer
+    constexpr size_t BUF_SIZE = 256;
+    uint8_t buf[BUF_SIZE];
+
+    // Helper to check timeout
+    auto timedOut = [&]()
+    {
+        return millis() >= deadline;
+    };
+
+    if (!isChunked)
+    {
+        while (!timedOut())
+        {
+            unsigned int avail = stream.available();
+            if (avail <= 0)
+            {
+                if (!stream.connected())
+                    break;
+                delay(5); // give background tasks a chance
+                continue;
+            }
+
+            // How much to read this iteration?
+            size_t want = (contentLength > 0)
+                              ? min<size_t>({BUF_SIZE, avail, contentLength - out.size()})
+                              : min<size_t>(BUF_SIZE, avail);
+
+            int n = stream.readBytes(buf, want);
+            if (n <= 0)
+                break;
+
+            out.insert(out.end(), buf, buf + n);
+            deadline = millis() + timeoutMillis; // reset timeout on progress
+
+            // If we've got it all, stop
+            if (contentLength > 0 && out.size() >= contentLength)
+                break;
+        }
+    }
+    else
+    {
+        // Buffer for reading the hex-size line
+        constexpr size_t LINE_BUF = 32;
+        char line[LINE_BUF];
+
+        while (!timedOut())
+        {
+            // Read chunk-size line (up to '\n')
+            int len = stream.readBytesUntil('\n', (uint8_t *)line, LINE_BUF - 1);
+            if (len <= 0)
+                break;
+            line[len] = '\0';
+
+            // Strip any trailing '\r'
+            if (char *cr = strchr(line, '\r'))
+                *cr = '\0';
+
+            // Parse hex length
+            size_t chunkSize = strtoul(line, nullptr, 16);
+            if (chunkSize == 0)
+                break; // end‑of‑chunks
+
+            size_t remaining = chunkSize;
+            while (remaining && !timedOut())
+            {
+                size_t toRead = min<size_t>(remaining, BUF_SIZE);
+                int n = stream.readBytes(buf, toRead);
+                if (n <= 0)
+                    break;
+
+                out.insert(out.end(), buf, buf + n);
+                remaining -= n;
+                deadline = millis() + timeoutMillis;
+            }
+
+            // Consume the trailing CRLF after each chunk
+            //    either by peeking two bytes, or skip to end of line
+            if (stream.available() >= 2)
+            {
+                char discard[2];
+                stream.readBytes((uint8_t *)discard, 2);
+            }
+            else
+            {
+                stream.readBytesUntil('\n', (uint8_t *)line, LINE_BUF - 1);
+            }
+        }
+    }
+
+    return out;
 }
 
 // Fetch a remote jpeg image and display it on the screen
@@ -276,79 +334,30 @@ esp_err_t DisplayImage(Inkplate &display, int rotation, const char *api, const J
                 return ESP_ERR_INVALID_RESPONSE;
             }
 
-            unsigned long startMillis = millis();
-            unsigned long timeoutMillis = timeout * 1000;
-            std::vector<uint8_t> imageBuffer;
-
-            // If chunked, read the stream until CRLF
-            if (isChunked)
-            {
-                imageBuffer = readChunkedStream(stream, timeoutMillis);
-            }
-            else
-            {
-                const size_t CHUNK_SIZE = 1024;
-                size_t totalBytesRead = 0;
-                imageBuffer.reserve(contentLength);
-
-                // Loop until either the timeout is reached or all expected data has been read.
-                while ((millis() - startMillis) < timeoutMillis)
-                {
-                    // Check how many bytes are currently available in the stream
-                    size_t availableBytes = stream->available();
-                    if (availableBytes > 0)
-                    {
-                        // Create a temporary buffer to hold data read from the stream
-                        uint8_t temp[CHUNK_SIZE];
-
-                        // Determine the number of bytes to read this iteration
-                        size_t toRead = (availableBytes > CHUNK_SIZE) ? CHUNK_SIZE : availableBytes;
-
-                        // If reading 'toRead' bytes would exceed the total expected content length,
-                        // then adjust to only read the remaining bytes
-                        if (toRead > (contentLength - totalBytesRead))
-                        {
-                            toRead = contentLength - totalBytesRead;
-                        }
-
-                        // Attempt to read 'toRead' bytes from the stream into the temporary buffer
-                        int bytesReadNow = stream->readBytes(temp, toRead);
-                        if (bytesReadNow <= 0)
-                        {
-                            Logger::log(Logger::LOG_ERROR, "Stream read failed");
-                            break;
-                        }
-
-                        // Append the bytes successfully read into the imageBuffer
-                        imageBuffer.insert(imageBuffer.end(), temp, temp + bytesReadNow);
-                        totalBytesRead += bytesReadNow;
-
-                        // If we have read the entire expected content length, exit the loop
-                        if (totalBytesRead >= (size_t)contentLength)
-                        {
-                            break;
-                        }
-                    }
-                    else
-                    {
-                        // If no data is currently available, check if the HTTP connection is still alive
-                        if (!https.connected())
-                            break;
-                        delay(10);
-                    }
-                }
-            }
+            // Read the stream
+            std::vector<uint8_t> imageBuffer = readStream(*stream, 1500, isChunked, contentLength);
+            https.end(); // No need to keep the connection open
 
             // Verify that we actually got some data
             if (imageBuffer.empty())
             {
                 Logger::log(Logger::LOG_ERROR, "No data read from stream");
-                https.end();
                 continue; // try again
+            }
+            else
+            {
+                Logger::logf(Logger::LOG_DEBUG, "Read %d bytes from stream", imageBuffer.size());
             }
 
             // Clear the screen before drawing
             display.clearDisplay();
+
+            // Check if the image is progressive
+            if (!jpeg_utils::isBaseline(imageBuffer.data(), imageBuffer.size()))
+            {
+                Logger::log(Logger::LOG_INFO, "Invalid JPEG image; try again...");
+                return ESP_ERR_INVALID_RESPONSE;
+            }
 
             // Allow the renderer to override the dithering setting
             int dither = static_cast<int>(DITHERING);
@@ -373,7 +382,6 @@ esp_err_t DisplayImage(Inkplate &display, int rotation, const char *api, const J
                 }
 
                 Logger::log(Logger::LOG_INFO, "Image successfully displayed.");
-                https.end();
                 return ESP_OK;
             }
             Logger::log(Logger::LOG_ERROR, "Failed to render JPEG image");
@@ -382,8 +390,6 @@ esp_err_t DisplayImage(Inkplate &display, int rotation, const char *api, const J
         {
             Logger::logf(Logger::LOG_DEBUG, "Image fetch failed. HTTP error code: %d", code);
         }
-
-        https.end();
         delay(1000); // short delay before next attempt
     }
 

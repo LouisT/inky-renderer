@@ -12,6 +12,21 @@ import {
     responseToReadableStream
 } from '../providers/utils.mjs';
 
+// The AI slop system prompt
+let _systemPrompt = (`
+    You are a vivid visual storyteller.
+    In less than 100 words, craft imaginative, richly detailed scenes suitable for all ages.
+    Avoid nudity, profanity, graphic violence, or adult themes.
+    Focus on wholesome creativity, vibrant imagery, and a sense of wonder.
+`).trim().replace(/\n/g, " ").replace(/\s+/g, " ");
+
+// The AI slop prompt
+let _prompt = (`
+    Describe a completely random - yet strictly safe for work - scene as if it were an image.
+    Envision any subject matter that is appropriate for all audiences (no nudity, explicit sexuality, graphic violence, gore, or profane/hateful language), in any art style, color palette, or composition.
+    Provide a vivid, open-ended textual description that embodies pure spontaneity and unpredictability, focusing on fine details while keeping the content wholesome and suitable for a workplace setting.
+`).trim().replace(/\n/g, " ").replace(/\s+/g, " ");
+
 // Create versioned endpoint
 const v1 = new Hono().basePath('/api/v1');
 
@@ -29,6 +44,31 @@ v1.use("/*", async (c, next) => {
     return basicAuth(...users.map(([username, password]) => ({ username, password })))(c, next)
 });
 
+// Create an AI slop endpoint
+v1.get('/_internal/ai-slop/:token?', async (c) => {
+    if (c.env.SLOP_ACCESS_TOKEN !== c.req.param('token')) {
+        console.error("Missing SLOP_ACCESS_TOKEN");
+        return getFallbackResponse({ w: 1200, h: 825 }, "ai-slop");
+    }
+
+    if (!c?.env?.AI || !c?.env?.SLOP_IMAGE_MODEL || !c?.env?.SLOP_PROMPT_MODEL) {
+        console.error("Missing AI, SLOP_IMAGE_MODEL or SLOP_PROMPT_MODEL");
+        return getFallbackResponse({ w: 1200, h: 825 }, "ai-slop");
+    }
+
+    return b64png((await c.env.AI.run(c.env.SLOP_IMAGE_MODEL, {
+        prompt: (await c.env.AI.run(c.env.SLOP_PROMPT_MODEL, {
+            max_tokens: 256,
+            messages: [
+                { role: "system", content: _systemPrompt },
+                { role: "user", content: _prompt },
+            ],
+            seed: ~~(Math.random() * 100000000),
+            temperature: 1,
+        })).response
+    })).image);
+});
+
 // Content rendering endpoint
 v1.get('/render/:providers?/:raw?', async (c) => {
     let _providers = c.req.param('providers'),
@@ -36,6 +76,7 @@ v1.get('/render/:providers?/:raw?', async (c) => {
             w: parseInt(c.req.query('w') ?? 1200),
             h: parseInt(c.req.query('h') ?? 825),
             mbh: parseInt(c.req.query('mbh') ?? 0),
+            fit: c.req.query('fit') ?? undefined
         },
         _raw = c.req.param('raw') == "raw",
         _json = c.req.query('json') == "true",
@@ -52,21 +93,26 @@ v1.get('/render/:providers?/:raw?', async (c) => {
         if (!c?.env?.AI || !c?.env?.SLOP_IMAGE_MODEL || !c?.env?.SLOP_PROMPT_MODEL)
             return getFallbackResponse(_mode, "ai-slop");
 
-        return new Response(((
-            await c.env.IMAGES.input(responseToReadableStream(b64png((await c.env.AI.run(c.env.SLOP_IMAGE_MODEL, {
-                prompt: (await c.env.AI.run(c.env.SLOP_PROMPT_MODEL, {
-                    max_tokens: 256,
-                    messages: [
-                        { role: "system", content: "You are an artist. You respond in no more than 100 words." },
-                        { role: "user", content: "Describe a completely random scene as if it were an image. Envision any subject matter, in any art style, color palette, or composition. Provide a vivid, open-ended textual description that embodies pure spontaneity and unpredictability, focusing on the details." },
-                    ],
-                    seed: ~~(Math.random() * 100000000),
-                    temperature: 1,
-                })).response
-            })).image)))
-                .transform(transform(_mode, ['X-Inky-Message-2'], "cover").cf?.image ?? {})
-                .output({ format: "image/jpeg" })
-        ).response()).body, {
+        // Build the endpoint
+        let _host = new URL(c.req.raw.url),
+            cacheEverything = c.req.query('cache') == "false" ? false : true,
+            endpoint = [
+                _host.origin,
+                "/api/v1/_internal/ai-slop/",
+                c.env.SLOP_ACCESS_TOKEN,
+                `?${new URLSearchParams(_mode).toString()}`
+            ].join("");
+
+        // To property transform we must make an API call to the internal AI slop endpoint
+        return new Response((
+            (await fetch(endpoint, {
+                cf: {
+                    cacheTtlByStatus: { "200-299": 1800, 404: 30, "500-599": 30 },
+                    cacheEverything,
+                    ...(transform(_mode, ["X-Inky-Message-2"], 'cover')?.cf || {}),
+                }
+            })).body
+        ), {
             headers: new Headers([
                 ["Content-Type", "image/jpeg"],
                 ["X-Image-Size", `${_mode.w}x${_mode.h}`],

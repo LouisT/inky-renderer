@@ -33,19 +33,23 @@ export function imgix(img, mode) {
 
 // Apply Cloudflare args to the image
 export function transform(mode, _headers = [], fit = "pad") {
+    let top = _headers.some((h) => h.includes("X-Inky-Message-0")) ? mode.mbh : 0,
+        bottom = _headers.some((h) => h.includes("X-Inky-Message-2")) ? mode.mbh : 0,
+        _fit = mode.fit ?? fit;
+
     return {
         cf: {
             image: {
                 format: "baseline-jpeg",
-                fit,
+                fit: _fit,
                 background: "#FFF", // Default to white for cleaner inkplate messages
                 width: mode.w,
-                height: mode.h,
+                height: mode.h - (_fit == "cover" ? (top + bottom) : 0),
                 ...(mode.mbh > 0 ? {
                     border: {
                         color: "#FFF", // Default to white for cleaner inkplate messages
-                        top: _headers.some((h) => h.includes("X-Inky-Message-0")) ? mode.mbh : 0,
-                        bottom: _headers.some((h) => h.includes("X-Inky-Message-2")) ? mode.mbh : 0
+                        top,
+                        bottom,
                     }
                 } : {})
             }
