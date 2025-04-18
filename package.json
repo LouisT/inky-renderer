@@ -19,8 +19,8 @@
         "qrcode-svg": "^1.1.0"
     },
     "devDependencies": {
-        "@cloudflare/puppeteer": "^1.0.1",
-        "@cloudflare/workers-types": "^4.20250416.0",
-        "wrangler": "^4.11.1"
+        "@cloudflare/puppeteer": "^1.0.2",
+        "@cloudflare/workers-types": "^4.20250418.0",
+        "wrangler": "^4.12.0"
     }
 }
