@@ -14,13 +14,13 @@
     "author": "LTDev LLC",
     "license": "MIT",
     "dependencies": {
-        "cbor2": "^1.12.0",
-        "hono": "^4.7.7",
+        "cbor2": "^2.0.0",
+        "hono": "^4.7.10",
         "qrcode-svg": "^1.1.0"
     },
     "devDependencies": {
         "@cloudflare/puppeteer": "^1.0.2",
-        "@cloudflare/workers-types": "^4.20250418.0",
-        "wrangler": "^4.12.0"
+        "@cloudflare/workers-types": "^4.20250517.0",
+        "wrangler": "^4.15.2"
     }
 }
