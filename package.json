@@ -15,7 +15,7 @@
     "license": "MIT",
     "dependencies": {
         "cbor2": "^2.0.0",
-        "hono": "^4.7.10",
+        "hono": "^4.9.7",
         "qrcode-svg": "^1.1.0"
     },
     "devDependencies": {
