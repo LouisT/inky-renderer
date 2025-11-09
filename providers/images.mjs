@@ -1,4 +1,5 @@
-import { fallback, imgix, transform } from "./utils.mjs";
+import { fallback, imgix, wsrv, RAWGScreenshots, pickOne } from "./utils.mjs";
+import RAWG from "./libs/RAWG.mjs";
 
 const providers = {
     "nasa": {
@@ -35,7 +36,7 @@ const providers = {
             // A "hack" to get a random image from xkcd
             let max = 3062;
             try {
-                max = (await (await fetch("https://xkcd.com/info.0.json")).json()).num ?? 1000;
+                max = (await (await fetch("https://xkcd.com/info.0.json")).json()).num ?? 3000;
             } catch { }
 
             // Build the API endpoint
@@ -113,6 +114,31 @@ const providers = {
         ]),
         image: async ({ data = [] }, mode, { env }) => {
             return new URL(data?.[0]?.path ?? fallback(mode));
+        }
+    },
+    "rawg": {
+        description: "RAWG Video Game Screenshots",
+        mbhOffset: 2,
+        api: async (mode, { env, req }, headers) => {
+            return await RAWG({
+                apiKey: env.RAWG_API_KEY,
+                gameId: req.query('gameId') ?? null, // If a specific game ID is provided, use it
+                gameSlug: req.query('gameSlug') ?? null, // If a specific game slug is provided, use it
+                gameSearch: req.query('gameSearch') ?? null, // If a specific game search term is provided, use it
+            });
+        },
+        apiHeaders: async () => [
+            ["Accept", "application/json"],
+        ],
+        headers: async (data, mode) => (data?.artworks?.length ? [
+            ["X-Inky-Message-0", `"${data?.game?.name ?? '???'}" released on ${data?.game?.released ?? '???'}`],
+            ["X-Inky-Message-2", `${data?.source ?? '???'} - Game #${data?.game?.id ?? '???'}`],
+        ] : [
+            ["X-Inky-Message-0", "Please check your renderer settings!"],
+            ["X-Inky-Message-2", "Invalid response from RAWG; using Lorem Picsum."],
+        ]),
+        image: async (data, mode, { req }) => {
+            return new URL(data?.artworks?.length ? wsrv(pickOne(data.artworks), mode) : fallback(mode));
         }
     },
 }

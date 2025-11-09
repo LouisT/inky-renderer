@@ -5,8 +5,8 @@
     "main": "index.mjs",
     "repository": "https://github.com/LouisT/inky-renderer",
     "scripts": {
-        "deploy": "npx wrangler deploy --minify index.mjs",
-        "secrets": "npx wrangler secret bulk .secrets.json",
+        "deploy": "npx wrangler deploy --minify index.mjs --env=dev",
+        "secrets": "npx wrangler secret bulk .secrets.json --env=dev",
         "deps": "npx npm-check-updates -u && npm install && npx depcheck",
         "deps:force": "npx npm-check-updates -u && rm -rf node_modules package-lock.json && npm install --force && npx depcheck",
         "dev": "npx wrangler dev --env=dev index.mjs"
@@ -14,13 +14,13 @@
     "author": "LTDev LLC",
     "license": "MIT",
     "dependencies": {
-        "cbor2": "^2.0.0",
-        "hono": "^4.7.10",
+        "cbor2": "^2.0.1",
+        "hono": "^4.10.4",
         "qrcode-svg": "^1.1.0"
     },
     "devDependencies": {
-        "@cloudflare/puppeteer": "^1.0.2",
-        "@cloudflare/workers-types": "^4.20250517.0",
-        "wrangler": "^4.15.2"
+        "@cloudflare/puppeteer": "^1.0.4",
+        "@cloudflare/workers-types": "^4.20251109.0",
+        "wrangler": "^4.46.0"
     }
 }

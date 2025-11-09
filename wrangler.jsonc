@@ -14,18 +14,18 @@
             "preview_id": "45f7b4dd887c4146be8c96c6fa6e30ae"
         }
     ],
-    "ai": {
-        "binding": "AI"
-    },
     "assets": {
         "binding": "ASSETS",
         "directory": "./assets"
     },
-    "browser": {
-        "binding": "BROWSER"
-    },
     "env": {
         "dev": {
+            "ai": {
+                "binding": "AI"
+            },
+            "images": {
+                "binding": "IMAGES"
+            },
             "kv_namespaces": [
                 {
                     "binding": "INKY_BROWSER_RENDERING",
@@ -40,9 +40,6 @@
                 "DEVELOPMENT": "true"
             }
         }
-    },
-    "images": {
-        "binding": "IMAGES"
     },
     "observability": {
         "enabled": true

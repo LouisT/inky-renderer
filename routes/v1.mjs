@@ -180,10 +180,13 @@ v1.get('/render/:providers?/:raw?', async (c) => {
                 // Get headers
                 let _headers = (await provider.headers?.(data, _mode, c) ?? []);
 
+                // Determine fit mode
+                let _modeFit = provider.fit ?? _mode.fit ?? 'pad';
+
                 // Fetch the image + return to the client
                 return new Response((await fetch(img, {
                     headers,
-                    ...transform(_mode, _headers),
+                    ...transform(_mode, _headers, _modeFit),
                 })).body, {
                     headers: new Headers([
                         ["Content-Type", _raw ? "text/plain" : "image/jpeg"],
@@ -244,8 +247,11 @@ v1.get('/render/:providers?/:raw?', async (c) => {
                     optimizeForSpeed: true,
                 }, (await provider?.options?.(_mode, c) ?? {}))));
 
-                // Disconnect and free up resources
-                await _browser.disconnect();
+                // Disconnect or close the browser to free up resources
+                await (c?.env?.USE_BROWSER_SESSIONS === "true"
+                    ? page.disconnect()
+                    : page.close()
+                );
 
                 // Take the screenshot + return to the client
                 return new Response(screenshot, {
@@ -262,7 +268,6 @@ v1.get('/render/:providers?/:raw?', async (c) => {
                 return getFallbackResponse(_mode, _provider);
         }
     } catch (e) {
-        console.log(e);
         return getFallbackResponse(_mode, _provider);
     }
 });

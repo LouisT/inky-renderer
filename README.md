@@ -11,6 +11,8 @@ Firmware + remote rendering service for Inkplate devices via Cloudflare Workers.
 4) [xkcd](https://xkcd.com/) (/xkcd) - Inkplates: 10, 6COLOR (can be hard to read)
 5) [AI Slop](https://en.wikipedia.org/wiki/AI_slop) (/ai-slop) - Inkplates: 10, 6COLOR
     * Uses [Cloudflare AI](https://developers.cloudflare.com/workers-ai/) to generate a random prompt + resulting image.
+6) [RAWG.io](https://rawg.io/) (/rawg) - Inkplates: 10, 6COLOR
+    * Pull game screenshots/info using `?gameId=123`, `?gameSlug=game-slug`, `?gameSearch=Game Name` or defaults back to a random game.
 
 ### Render Services (/api/v1/render)
 1) [NY Times](https://developer.nytimes.com/) (/news, /nytimes) - Inkplates: 10, 6COLLOR
@@ -32,9 +34,10 @@ Firmware + remote rendering service for Inkplate devices via Cloudflare Workers.
 1) Clone the repo.
 2) Copy config to data directory.
     * Inkplate 10: Copy `config.example.json` to `./data/config.json`.
-    * Inkplate 6COLOR: Copy `config_color.example.json` to `./data/config_color.json`.
-4) ....
-5) Hang on wall.
+    * Inkplate 6COLOR: Copy `config_6color.example.json` to `./data/config_6color.json`.
+4) Modify `wrangler.jsonc`, `npm run deploy`, `npm run secrets`
+5) ...
+6) Hang on wall.
 
 ***This example is outdated; will update eventually!***
 ![NY Times example](https://cdn.lou.ist/Inky/nytimes-resized.jpeg)

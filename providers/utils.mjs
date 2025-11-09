@@ -31,6 +31,18 @@ export function imgix(img, mode) {
     return img;
 }
 
+// Use wsrv.nl to resize the image
+export function wsrv(img, mode) {
+    let repl = new URL("https://wsrv.nl/");
+    repl.searchParams.set("url", (img instanceof URL) ? img.href : img);
+    repl.searchParams.set("w", mode.w);
+    repl.searchParams.set("h", mode.h);
+    repl.searchParams.set("fit", "fill");
+
+    // Return the image URL
+    return repl;
+}
+
 // Apply Cloudflare args to the image
 export function transform(mode, _headers = [], fit = "pad") {
     let top = _headers.some((h) => h.includes("X-Inky-Message-0")) ? mode.mbh : 0,
@@ -57,20 +69,18 @@ export function transform(mode, _headers = [], fit = "pad") {
     }
 }
 
-// Convert base65 string to PNG
+// Convert base64 string to PNG
 export function b64png(b64) {
     return new Response(Uint8Array.from(atob(b64.replace(/^data:image\/png;base64,/, '')), char => char.charCodeAt(0)), {
         headers: { 'Content-Type': 'image/png' }
     });
 }
 
-
 // Convert a Response to a ReadableStream
 export function responseToReadableStream(response) {
     // If there's already a ReadableStream, you can simply return `response.body`:
-    if (!response.body) {
+    if (!response.body)
         throw new Error("The response has no body or the body was already consumed.");
-    }
 
     return new ReadableStream({
         async start(controller) {
