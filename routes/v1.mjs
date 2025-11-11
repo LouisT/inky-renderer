@@ -221,7 +221,7 @@ v1.get('/render/:providers?/:raw?', async (c) => {
                 if (_type == "render") {
                     await page.setContent(await patch(await provider.source(data, _mode, c), _base), { waitUntil: 'networkidle2' });
                 } else {
-                    await page.goto(await provider.link(_mode, c), { waitUntil: 'networkidle2' });
+                    await page.goto(await provider.link(data, _mode, c), { waitUntil: 'networkidle2' });
                 }
 
                 // Select the target element
@@ -249,8 +249,8 @@ v1.get('/render/:providers?/:raw?', async (c) => {
 
                 // Disconnect or close the browser to free up resources
                 await (c?.env?.USE_BROWSER_SESSIONS === "true"
-                    ? page.disconnect()
-                    : page.close()
+                    ? _browser.disconnect()
+                    : _browser.close()
                 );
 
                 // Take the screenshot + return to the client

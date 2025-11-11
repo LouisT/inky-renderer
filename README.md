@@ -24,6 +24,9 @@ Firmware + remote rendering service for Inkplate devices via Cloudflare Workers.
 3) [Hacker News](https://news.ycombinator.com/) (/hn) - Inkplates: 10, 6COLOR
     * Uses the [Algolia Search API](https://hn.algolia.com/api).
     * Currently only supports the `/api/v1/search` endpoint. Example: `/render/hn?tags=story`
+4) [Google Calendar](https://calendar.google.com/) (/google-calendar) - Inkplates: 10, 6COLOR
+    * Must be a public calendar. See [help](https://support.google.com/calendar/answer/41207?hl=en) for more information.
+    * Pass multiple `calendarId`'s to the endpoint using commas. Example: `/render/google-calendar?calendarId=123asd,456fgh`
 
 ### Supported Devices
 1) [Inkplate 10](https://soldered.com/product/inkplate-10-9-7-e-paper-board-copy/)
