@@ -12,6 +12,10 @@
             "binding": "INKY_BROWSER_RENDERING",
             "id": "d5c6c98d26824dd1966453a1b04ef7cf",
             "preview_id": "45f7b4dd887c4146be8c96c6fa6e30ae"
+        },
+        {
+            "binding": "INKY_IMAGES",
+            "id": "000998ca2a174a9ea7a0abc3d8d3fcad"
         }
     ],
     "assets": {
@@ -31,6 +35,10 @@
                     "binding": "INKY_BROWSER_RENDERING",
                     "id": "d5c6c98d26824dd1966453a1b04ef7cf",
                     "preview_id": "45f7b4dd887c4146be8c96c6fa6e30ae"
+                },
+                {
+                    "binding": "INKY_IMAGES",
+                    "id": "000998ca2a174a9ea7a0abc3d8d3fcad"
                 }
             ],
             "browser": {

@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Inky Renderer | Image Uploader</title>
+  <style>
+    :root {
+      --bg: #121212;
+      --card: #1e1e1e;
+      --primary: #bb86fc;
+      --text: #e1e1e1;
+      --border: #333;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+
+    .container {
+      background: var(--card);
+      padding: 2.5rem;
+      border-radius: 12px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+      width: 100%;
+      max-width: 480px;
+      text-align: center;
+      box-sizing: border-box;
+    }
+
+    h1 {
+      margin-top: 0;
+      margin-bottom: 1.5rem;
+      font-weight: 300;
+      letter-spacing: 0.5px;
+      font-size: 1.8rem;
+    }
+
+    #drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: 8px;
+      padding: 3.5rem 1rem;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      margin-bottom: 1.5rem;
+      background: rgba(255, 255, 255, 0.01);
+      overflow-wrap: break-word;
+    }
+
+    #drop-zone.hover {
+      border-color: var(--primary);
+      background: rgba(187, 134, 252, 0.05);
+    }
+
+    select,
+    button {
+      width: 100%;
+      padding: 14px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: #252525;
+      color: white;
+      font-size: 1rem;
+      box-sizing: border-box;
+      appearance: none;
+    }
+
+    button {
+      background: var(--primary);
+      color: #000;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      margin-top: 20px;
+      transition: background 0.2s;
+    }
+
+    button:active {
+      transform: scale(0.98);
+      opacity: 0.9;
+    }
+
+    button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .status {
+      margin-top: 20px;
+      font-size: 0.85rem;
+      color: #aaa;
+      min-height: 1.2rem;
+    }
+
+    #preview-container {
+      margin-top: 25px;
+      display: none;
+    }
+
+    #preview-image {
+      max-width: 100%;
+      height: auto;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      margin-top: 10px;
+    }
+
+    canvas {
+      display: none;
+    }
+
+    @media (max-width: 480px) {
+      body {
+        align-items: flex-start;
+        padding: 10px;
+      }
+
+      .container {
+        padding: 1rem 1.25rem 2rem 1.25rem;
+        margin-top: 10px;
+      }
+
+      h1 {
+        font-size: 1.4rem;
+        margin-bottom: 1rem;
+      }
+
+      #drop-zone {
+        padding: 1.5rem 1rem;
+        margin-bottom: 1rem;
+      }
+
+      button {
+        margin-top: 15px;
+        padding: 12px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h1>Inky Uploader</h1>
+    <div id="drop-zone">
+      <span id="drop-text">Drag and drop image or click to browse</span>
+      <input type="file" id="fileInput" accept="image/*" style="display: none;">
+    </div>
+    <select id="sizeSelect">
+      <option value="600,448">Landscape (600x448)</option>
+      <option value="448,600">Portrait (448x600)</option>
+      <option value="1200,825">Landscape (1200x825)</option>
+      <option value="825,1200">Portrait (825x1200)</option>
+    </select>
+    <button id="uploadBtn">Process and Upload</button>
+    <div id="status" class="status"></div>
+    <div id="preview-container">
+      <span>Latest Upload</span>
+      <img id="preview-image" src="" alt="Preview">
+    </div>
+  </div>
+  <canvas id="canvas"></canvas>
+  <script>
+    const els = {
+      dropZone: document.getElementById('drop-zone'),
+      fileInput: document.getElementById('fileInput'),
+      uploadBtn: document.getElementById('uploadBtn'),
+      status: document.getElementById('status'),
+      sizeSelect: document.getElementById('sizeSelect'),
+      canvas: document.getElementById('canvas'),
+      previewImg: document.getElementById('preview-image'),
+      previewContainer: document.getElementById('preview-container'),
+      dropText: document.getElementById('drop-text')
+    };
+    let selectedFile = null;
+    const updateStatus = (msg) => els.status.innerText = `Status: ${msg}`,
+      handleFile = (file) => {
+        if (!file.type.startsWith('image/'))
+          return updateStatus("Error: Invalid Format");
+        selectedFile = file;
+        els.dropText.innerText = `Loaded: ${file.name}`;
+        updateStatus("Ready for Processing");
+      };
+    els.dropZone.onclick = () => els.fileInput.click();
+    els.fileInput.onchange = () => els.fileInput.files[0] && handleFile(els.fileInput.files[0]);
+    ['dragenter', 'dragover'].forEach(e => {
+      els.dropZone.addEventListener(e, (ev) => {
+        ev.preventDefault();
+        els.dropZone.classList.add('hover');
+      });
+    });
+    ['dragleave', 'drop'].forEach(e => {
+      els.dropZone.addEventListener(e, (ev) => {
+        ev.preventDefault();
+        els.dropZone.classList.remove('hover');
+        if (e === 'drop' && ev.dataTransfer.files[0]) handleFile(ev.dataTransfer.files[0]);
+      });
+    });
+    els.uploadBtn.onclick = async () => {
+      if (!selectedFile)
+        return updateStatus("Error: No Input");
+      els.uploadBtn.disabled = true;
+      updateStatus("Processing Stream...");
+      const [tw, th] = els.sizeSelect.value.split(',').map(Number),
+        img = new Image();
+      img.src = URL.createObjectURL(selectedFile);
+      img.onload = () => {
+        els.canvas.width = tw;
+        els.canvas.height = th;
+        const ctx = els.canvas.getContext('2d'),
+          scale = Math.max(tw / img.width, th / img.height),
+          x = (tw / 2) - (img.width / 2) * scale,
+          y = (th / 2) - (img.height / 2) * scale;
+        ctx.fillStyle = "#000";
+        ctx.fillRect(0, 0, tw, th);
+        ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+        els.canvas.toBlob(async (blob) => {
+          const formData = new FormData();
+          formData.append('image', blob, 'upload.jpg');
+          try {
+            const res = await fetch('/api/v0/images/upload', {
+              method: 'POST',
+              body: formData
+            });
+            if (res.status === 401) {
+              updateStatus("Access Denied: 401 Unauthorized");
+            } else if (res.ok) {
+              const buster = Math.random().toString(36).substring(7);
+              updateStatus("Transfer Complete");
+              els.previewImg.src = `/api/v0/images/${buster}`;
+              els.previewContainer.style.display = 'block';
+            } else {
+              updateStatus("Error: Transfer Failed");
+            }
+          } catch (err) {
+            updateStatus("Error: Connection Interrupted");
+          } finally {
+            els.uploadBtn.disabled = false;
+          }
+        }, 'image/jpeg', 0.9);
+      };
+    };
+  </script>
+</body>
+
+</html>

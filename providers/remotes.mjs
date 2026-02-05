@@ -25,7 +25,7 @@ const providers = {
         },
         // Selector for the target element
         target: 'body'
-    },
+    }
 }
 
 export {

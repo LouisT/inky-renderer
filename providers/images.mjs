@@ -141,6 +141,14 @@ const providers = {
             return new URL(data?.artworks?.length ? wsrv(pickOne(data.artworks), mode) : fallback(mode));
         }
     },
+    "uploaded": {
+        hidden: true,
+        description: "Uploaded image",
+        image: async (data, mode, c) => {
+            // Generate a random key for the URL to prevent caching, with the same origin
+            return new URL(`/api/v0/images/${ Math.random().toString(36).substring(7) }`, new URL(c.req.url).origin);
+        },
+    },
 }
 
 export {

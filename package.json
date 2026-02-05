@@ -1,6 +1,6 @@
 {
     "name": "inky-renderer",
-    "version": "0.0.1-beta.2",
+    "version": "0.0.1-beta.3",
     "description": "A remote render service for Inkplate devices via Cloudflare Workers.",
     "main": "index.mjs",
     "repository": "https://github.com/LouisT/inky-renderer",
@@ -14,13 +14,13 @@
     "author": "LTDev LLC",
     "license": "MIT",
     "dependencies": {
-        "cbor2": "^2.0.1",
-        "hono": "^4.10.4",
+        "cbor2": "^2.2.1",
+        "hono": "^4.11.7",
         "qrcode-svg": "^1.1.0"
     },
     "devDependencies": {
-        "@cloudflare/puppeteer": "^1.0.4",
-        "@cloudflare/workers-types": "^4.20251111.0",
-        "wrangler": "^4.46.0"
+        "@cloudflare/puppeteer": "^1.0.6",
+        "@cloudflare/workers-types": "^4.20260205.0",
+        "wrangler": "^4.62.0"
     }
 }

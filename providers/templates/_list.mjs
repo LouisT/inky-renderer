@@ -14,7 +14,7 @@ export default async function (endpoints, mode, c) {
         <div class="container">
             <div class="content">
                 <div class="articles" style="--gap:0.6rem;">
-                ${endpoints?.map((ep) => html`
+                ${endpoints?.filter?.((ep) => !ep.hidden)?.map((ep) => html`
                     <span class="underline">
                         <a href="/api/v1/render/${ep.name}/raw">
                             <h3 class="fs-xs" style="margin-bottom:0.2rem;">

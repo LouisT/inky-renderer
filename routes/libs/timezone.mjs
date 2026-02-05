@@ -1,7 +1,7 @@
 // Get the timezone offset in seconds
 export function getOffsetInSeconds(tz, date = new Date()) {
-    const utcd = new Date(date.toLocaleString('en-US', { timeZone: 'UTC', hour12: false }));
-    const tzd = new Date(date.toLocaleString('en-US', { timeZone: tz, hour12: false }));
+    const utcd = new Date(date.toLocaleString('en-US', { timeZone: 'UTC', hour12: false })),
+        tzd = new Date(date.toLocaleString('en-US', { timeZone: tz, hour12: false }));
     return (tzd - utcd) / 1000;
 }
 
@@ -16,7 +16,11 @@ export function getTimeZoneInfo(tz) {
     if (!tz) // Default to UTC, no timezone specified, mark as defaulted
         return { ...result, defaulted: true };
 
-    let gmtOffset = 0, year, januaryOffset, julyOffset, error
+    let gmtOffset = 0,
+        year,
+        januaryOffset,
+        julyOffset,
+        error;
     try {
         gmtOffset = getOffsetInSeconds(tz) || 0;
         year = new Date().getFullYear();

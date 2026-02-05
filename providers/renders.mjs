@@ -89,7 +89,7 @@ const providers = {
                 c
             );
         },
-    },
+    }
 }
 
 // Alias for nytimes
