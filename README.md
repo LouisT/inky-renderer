@@ -3,6 +3,17 @@ Firmware + remote rendering service for Inkplate devices via Cloudflare Workers.
 
 ### This is a WIP!
 
+### Gallery & Uploads (/api/v0)
+A private image hosting system backed by Cloudflare R2 (storage) and D1 (metadata).
+1) Web Gallery
+    * Upload images via a web interface. (/uploader)
+    * View images via a web interface. (/gallery)
+    * Requires Basic Auth.
+2) API Endpoints (See ./routes/v0.mjs for more information)
+    * Random Image: `/api/v0/images/random` (Redirects to a specific image ID).
+    * Specific Image: `/api/v0/images/:id`
+        * Supports resizing params: `?w=600&h=448` (Uses Cloudflare Image resizing).
+
 ### Image Services (/api/v1/render)
 1) [Unsplash](https://unsplash.com/developers)  (/unsplash) - Inkplates: 10, 6COLOR
 2) [Wallhaven](https://wallhaven.cc/help/api) (/wallhaven) - Inkplates: 10, 6COLOR
@@ -35,12 +46,16 @@ Firmware + remote rendering service for Inkplate devices via Cloudflare Workers.
 
 ### Setup
 1) Clone the repo.
-2) Copy config to data directory.
+2) Copy config to data directory + edit.
     * Inkplate 10: Copy `config.example.json` to `./data/config.json`.
     * Inkplate 6COLOR: Copy `config_6color.example.json` to `./data/config_6color.json`.
-4) Modify `wrangler.jsonc`, `npm run deploy`, `npm run secrets`
-5) ...
-6) Hang on wall.
-
-***This example is outdated; will update eventually!***
-![NY Times example](https://cdn.lou.ist/Inky/nytimes-resized.jpeg)
+3) Create Cloudflare Resources:
+    * R2 Bucket: `npx wrangler r2 bucket create inky-images`
+    * D1 Database: `npx wrangler d1 create inky-images`
+4) Modify `wrangler.jsonc`:
+    * Update `d1_databases` with your new Database ID from step 3.
+5) Configure Secrets:
+    * Copy `.secrets.example.json` to `.secrets.json`.
+    * Run `npm run secrets`.
+6) `npm run deploy`
+7) Hang on wall.

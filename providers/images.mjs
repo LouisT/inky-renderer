@@ -141,12 +141,19 @@ const providers = {
             return new URL(data?.artworks?.length ? wsrv(pickOne(data.artworks), mode) : fallback(mode));
         }
     },
-    "uploaded": {
+    "inky-gallery": {
         hidden: true,
-        description: "Uploaded image",
+        description: "Random uploaded image from the gallery",
         image: async (data, mode, c) => {
             // Generate a random key for the URL to prevent caching, with the same origin
-            return new URL(`/api/v0/images/${ Math.random().toString(36).substring(7) }`, new URL(c.req.url).origin);
+            let url = new URL(`/api/v0/images/random/${Math.random().toString(36).substring(2)}`, new URL(c.req.url).origin);
+
+            // Add w and h params
+            url.searchParams.set('w', mode.w);
+            url.searchParams.set('h', mode.h);
+
+            // Return the image URL
+            return url;
         },
     },
 }

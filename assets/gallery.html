@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Inky Renderer | Gallery</title>
+  <style>
+    :root {
+      --bg: #121212;
+      --card: #1e1e1e;
+      --primary: #bb86fc;
+      --text: #e1e1e1;
+      --border: #333;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      min-height: 100vh;
+    }
+
+    .header-container {
+      max-width: 1200px;
+      margin: 0 auto 2rem auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 10px;
+    }
+
+    h1 {
+      margin: 0;
+      font-weight: 300;
+      letter-spacing: 0.5px;
+      font-size: 1.8rem;
+    }
+
+    .upload-btn {
+      background: var(--primary);
+      color: #000;
+      text-decoration: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      transition: opacity 0.2s;
+    }
+
+    .upload-btn:hover {
+      opacity: 0.9;
+    }
+
+    .gallery-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 10px;
+    }
+
+    .gallery-item {
+      background: var(--card);
+      border-radius: 12px;
+      overflow: hidden;
+      aspect-ratio: 4/3;
+      border: 1px solid var(--border);
+      position: relative;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+      transition: transform 0.2s;
+    }
+
+    .gallery-item:hover {
+      transform: translateY(-2px);
+      border-color: var(--primary);
+    }
+
+    .gallery-item img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .loading-sentinel {
+      height: 80px;
+      width: 100%;
+      margin-top: 30px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: #666;
+      font-size: 0.9rem;
+    }
+
+    @media (max-width: 480px) {
+      .header-container {
+        flex-direction: column;
+        gap: 15px;
+        align-items: flex-start;
+      }
+
+      .gallery-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="header-container">
+    <h1>Inky Gallery</h1>
+    <a href="/uploader" class="upload-btn">Upload New Image</a>
+  </div>
+  <div id="gallery" class="gallery-grid"></div>
+  <div id="sentinel" class="loading-sentinel">Loading content...</div>
+  <script>
+    const gallery = document.getElementById('gallery'),
+      sentinel = document.getElementById('sentinel');
+    let offset = 0,
+      hasMore = true,
+      isLoading = false;
+    const loadGallery = async () => {
+      if (isLoading || !hasMore) return;
+      isLoading = true;
+      try {
+        const res = await fetch(`/api/v0/images/list?offset=${offset}`);
+        if (!res.ok)
+          throw new Error("Failed to load");
+        const data = await res.json();
+        if (data.images && data.images.length > 0) {
+          data.images.forEach(img => {
+            const div = document.createElement('div');
+            div.className = 'gallery-item';
+            div.innerHTML = `<a href="/api/v0/images/${img.id}" target="_blank">
+              <img src="/api/v0/images/${img.id}?w=400" loading="lazy" alt="Uploaded Image">
+            </a>`;
+            gallery.appendChild(div);
+          });
+          offset += data.images.length;
+          hasMore = data.hasMore;
+          if (!hasMore)
+            sentinel.innerText = "End of content";
+        } else {
+          hasMore = false;
+          sentinel.innerText = (offset === 0) ? "No images uploaded yet." : "End of content";
+        }
+      } catch (e) {
+        sentinel.innerText = "Error loading gallery.";
+        console.error(e);
+      } finally {
+        isLoading = false;
+      }
+    };
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting)
+        loadGallery();
+    }, {
+      rootMargin: "200px"
+    });
+    observer.observe(sentinel);
+  </script>
+</body>
+
+</html>

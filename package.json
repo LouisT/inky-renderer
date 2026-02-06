@@ -15,12 +15,12 @@
     "license": "MIT",
     "dependencies": {
         "cbor2": "^2.2.1",
-        "hono": "^4.11.7",
+        "hono": "^4.11.8",
         "qrcode-svg": "^1.1.0"
     },
     "devDependencies": {
         "@cloudflare/puppeteer": "^1.0.6",
-        "@cloudflare/workers-types": "^4.20260205.0",
-        "wrangler": "^4.62.0"
+        "@cloudflare/workers-types": "^4.20260206.0",
+        "wrangler": "^4.63.0"
     }
 }

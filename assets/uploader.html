@@ -102,6 +102,18 @@
       min-height: 1.2rem;
     }
 
+    .nav-link {
+      margin-top: 20px;
+      display: inline-block;
+      color: var(--primary);
+      text-decoration: none;
+      font-size: 0.9rem;
+    }
+
+    .nav-link:hover {
+      text-decoration: underline;
+    }
+
     #preview-container {
       margin-top: 25px;
       display: none;
@@ -156,17 +168,16 @@
       <input type="file" id="fileInput" accept="image/*" style="display: none;">
     </div>
     <select id="sizeSelect">
-      <option value="600,448">Landscape (600x448)</option>
-      <option value="448,600">Portrait (448x600)</option>
-      <option value="1200,825">Landscape (1200x825)</option>
-      <option value="825,1200">Portrait (825x1200)</option>
+      <option value="landscape">Landscape (1200x825)</option>
+      <option value="portrait">Portrait (825x1200)</option>
     </select>
     <button id="uploadBtn">Process and Upload</button>
     <div id="status" class="status"></div>
     <div id="preview-container">
-      <span>Latest Upload</span>
+      <span style="font-size: 0.8rem; color: #aaa;">Latest Upload</span><br>
       <img id="preview-image" src="" alt="Preview">
     </div>
+    <a href="/gallery" class="nav-link">View Gallery &rarr;</a>
   </div>
   <canvas id="canvas"></canvas>
   <script>
@@ -209,8 +220,9 @@
       if (!selectedFile)
         return updateStatus("Error: No Input");
       els.uploadBtn.disabled = true;
-      updateStatus("Processing Stream...");
-      const [tw, th] = els.sizeSelect.value.split(',').map(Number),
+      updateStatus("Processing...");
+      const orientation = els.sizeSelect.value,
+        [tw, th] = orientation === 'landscape' ? [1200, 825] : [825, 1200],
         img = new Image();
       img.src = URL.createObjectURL(selectedFile);
       img.onload = () => {
@@ -232,12 +244,14 @@
               body: formData
             });
             if (res.status === 401) {
-              updateStatus("Access Denied: 401 Unauthorized");
+              updateStatus("Access Denied");
             } else if (res.ok) {
-              const buster = Math.random().toString(36).substring(7);
-              updateStatus("Transfer Complete");
-              els.previewImg.src = `/api/v0/images/${buster}`;
+              const data = await res.json();
+              updateStatus("Upload Complete");
+              els.previewImg.src = `/api/v0/images/${data.id}?w=400`;
               els.previewContainer.style.display = 'block';
+              selectedFile = null;
+              els.dropText.innerText = "Drag and drop image or click to browse";
             } else {
               updateStatus("Error: Transfer Failed");
             }
@@ -246,7 +260,7 @@
           } finally {
             els.uploadBtn.disabled = false;
           }
-        }, 'image/jpeg', 0.9);
+        }, 'image/jpeg', 0.95);
       };
     };
   </script>
