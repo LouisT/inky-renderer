@@ -12,6 +12,7 @@
       --primary: #bb86fc;
       --text: #e1e1e1;
       --border: #333;
+      --danger: #cf6679;
     }
 
     body {
@@ -30,6 +31,14 @@
       justify-content: space-between;
       align-items: center;
       padding: 0 10px;
+      flex-wrap: wrap;
+      gap: 15px;
+    }
+
+    .header-title {
+      display: flex;
+      align-items: center;
+      gap: 20px;
     }
 
     h1 {
@@ -37,6 +46,16 @@
       font-weight: 300;
       letter-spacing: 0.5px;
       font-size: 1.8rem;
+    }
+
+    select {
+      background: var(--card);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      min-width: 150px;
     }
 
     .upload-btn {
@@ -71,7 +90,7 @@
       border: 1px solid var(--border);
       position: relative;
       box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-      transition: transform 0.2s;
+      transition: transform 0.2s, border-color 0.2s;
     }
 
     .gallery-item:hover {
@@ -84,6 +103,40 @@
       height: 100%;
       object-fit: cover;
       display: block;
+    }
+
+    .delete-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: rgba(0, 0, 0, 0.7);
+      border: 1px solid var(--danger);
+      color: var(--danger);
+      border-radius: 50%;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.2s, background 0.2s;
+      z-index: 10;
+    }
+
+    .gallery-item:hover .delete-btn {
+      opacity: 1;
+    }
+
+    .delete-btn:hover {
+      background: var(--danger);
+      color: white;
+    }
+
+    .delete-btn svg {
+      width: 16px;
+      height: 16px;
+      fill: currentColor;
     }
 
     .loading-sentinel {
@@ -100,12 +153,27 @@
     @media (max-width: 480px) {
       .header-container {
         flex-direction: column;
-        gap: 15px;
         align-items: flex-start;
+      }
+
+      .header-title {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+        width: 100%;
+      }
+
+      select {
+        width: 100%;
       }
 
       .gallery-grid {
         grid-template-columns: 1fr;
+      }
+
+      .delete-btn {
+        opacity: 1;
+        background: rgba(0, 0, 0, 0.5);
       }
     }
   </style>
@@ -113,22 +181,69 @@
 
 <body>
   <div class="header-container">
-    <h1>Inky Gallery</h1>
+    <div class="header-title">
+      <h1>Inky Gallery</h1>
+      <select id="tagFilter">
+        <option value="">All Tags</option>
+      </select>
+    </div>
     <a href="/uploader" class="upload-btn">Upload New Image</a>
   </div>
   <div id="gallery" class="gallery-grid"></div>
   <div id="sentinel" class="loading-sentinel">Loading content...</div>
   <script>
     const gallery = document.getElementById('gallery'),
-      sentinel = document.getElementById('sentinel');
+      sentinel = document.getElementById('sentinel'),
+      tagFilter = document.getElementById('tagFilter');
     let offset = 0,
       hasMore = true,
-      isLoading = false;
-    const loadGallery = async () => {
-      if (isLoading || !hasMore) return;
+      isLoading = false,
+      currentTag = "";
+    const trashIcon = `<svg viewBox="0 0 24 24"><path d="M3 6v18h18v-18h-18zm5 14c0 .552-.448 1-1 1s-1-.448-1-1v-10c0-.552.448-1 1-1s1 .448 1 1v10zm5 0c0 .552-.448 1-1 1s-1-.448-1-1v-10c0-.552.448-1 1-1s1 .448 1 1v10zm5 0c0 .552-.448 1-1 1s-1-.448-1-1v-10c0-.552.448-1 1-1s1 .448 1 1v10zm4-18v2h-20v-2h5.711c.9 0 1.631-1.099 1.631-2h5.316c0 .901.73 2 1.631 2h5.711z"/></svg>`;
+    const deleteImage = async (id, element) => {
+      if (!confirm("Are you sure you want to delete this image?"))
+        return;
+      try {
+        const res = await fetch(`/api/v0/images/${id}`, {
+          method: 'DELETE'
+        });
+        if (res.ok) element.remove();
+        else alert("Failed to delete image.");
+      } catch (e) {
+        alert("Error connecting to server.");
+      }
+    };
+    const loadTags = async () => {
+      try {
+        const res = await fetch('/api/v0/images/tags'),
+          data = await res.json();
+        if (data.tags) {
+          data.tags.forEach(tag => {
+            const option = document.createElement('option');
+            option.value = tag;
+            option.innerText = tag;
+            tagFilter.appendChild(option);
+          });
+        }
+      } catch (e) {
+        console.error("Failed to load tags");
+      }
+    };
+    const loadGallery = async (reset = false) => {
+      if (reset) {
+        offset = 0;
+        hasMore = true;
+        gallery.innerHTML = '';
+        sentinel.innerText = "Loading content...";
+      }
+      if (isLoading || !hasMore)
+        return;
       isLoading = true;
       try {
-        const res = await fetch(`/api/v0/images/list?offset=${offset}`);
+        let url = `/api/v0/images/list?offset=${offset}`;
+        if (currentTag)
+          url += `&tag=${encodeURIComponent(currentTag)}`;
+        const res = await fetch(url);
         if (!res.ok)
           throw new Error("Failed to load");
         const data = await res.json();
@@ -136,25 +251,38 @@
           data.images.forEach(img => {
             const div = document.createElement('div');
             div.className = 'gallery-item';
-            div.innerHTML = `<a href="/api/v0/images/${img.id}" target="_blank">
-              <img src="/api/v0/images/${img.id}?w=400" loading="lazy" alt="Uploaded Image">
-            </a>`;
+            const link = document.createElement('a');
+            link.href = `/api/v0/images/${img.id}`;
+            link.target = "_blank";
+            link.innerHTML = `<img src="/api/v0/images/${img.id}?w=400" loading="lazy" alt="Image">`;
+            const btn = document.createElement('div');
+            btn.className = 'delete-btn';
+            btn.innerHTML = trashIcon;
+            btn.onclick = (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              deleteImage(img.id, div);
+            };
+            div.appendChild(link);
+            div.appendChild(btn);
             gallery.appendChild(div);
           });
           offset += data.images.length;
           hasMore = data.hasMore;
-          if (!hasMore)
-            sentinel.innerText = "End of content";
+          if (!hasMore) sentinel.innerText = "End of content";
         } else {
           hasMore = false;
-          sentinel.innerText = (offset === 0) ? "No images uploaded yet." : "End of content";
+          sentinel.innerText = (offset === 0) ? "No images found." : "End of content";
         }
       } catch (e) {
         sentinel.innerText = "Error loading gallery.";
-        console.error(e);
       } finally {
         isLoading = false;
       }
+    };
+    tagFilter.onchange = () => {
+      currentTag = tagFilter.value;
+      loadGallery(true);
     };
     const observer = new IntersectionObserver((entries) => {
       if (entries[0].isIntersecting)
@@ -163,6 +291,7 @@
       rootMargin: "200px"
     });
     observer.observe(sentinel);
+    loadTags();
   </script>
 </body>
 

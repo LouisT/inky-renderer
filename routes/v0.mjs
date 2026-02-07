@@ -35,7 +35,7 @@ v0.get('/timezone/:timezone?', async (c) => {
     }
 });
 
-// Reusable Auth Middleware
+// Reusable auth middleware, always requires Basic Auth, ignores SKIP_AUTH
 const authMiddleware = async (c, next) => {
     let users = [];
     try {
@@ -46,57 +46,175 @@ const authMiddleware = async (c, next) => {
     return basicAuth(...users.map(([username, password]) => ({ username, password })))(c, next);
 };
 
+// Helper to extract username from Basic Auth header
+const getUser = (c) => {
+    try {
+        return atob((c.req.header('Authorization'))?.split(' ')?.[1])?.split?.(':')?.[0] ?? 'unknown';
+    } catch {
+        return 'unknown';
+    }
+};
+
+// Helper to parse and normalize image tags
+const parseTags = (tags) => {
+    try {
+        // Parse tags
+        let _tags = String(tags ?? '').split(',').map(t => t.trim()).filter(t => t.length > 0);
+        if (!Array.isArray(_tags))
+            _tags = [_tags];
+
+        // Normalize tags
+        return _tags.map(t => t.toLowerCase().replace(/\s+/g, '-')
+            .replace(/[^a-z0-9-]/g, '_').trim())
+            .filter((t, i, a) => a.indexOf(t) === i)
+            .filter(t => t.length > 0)
+            .sort();
+    } catch {
+        return [];
+    }
+}
+
 // Apply Auth to Upload and Gallery
 v0.use('/images/upload', authMiddleware);
 v0.use('/images/list', authMiddleware);
 
+// Get a list of supported image tags
+v0.get('/images/tags', async (c) => {
+    try {
+        // Ensure table exists just in case
+        await c.env.DB.prepare(
+            `CREATE TABLE IF NOT EXISTS tags (tag TEXT PRIMARY KEY)`
+        ).run();
+
+        // Get all tags and return
+        return c.json({
+            tags: (await c.env.DB.prepare(
+                `SELECT tag FROM tags ORDER BY tag ASC`
+            ).all()).results.map(r => r.tag)
+        });
+    } catch (e) {
+        return c.json({ tags: [] });
+    }
+});
+
 // Upload endpoint
 v0.post('/images/upload', async (c) => {
     try {
-        const body = await c.req.parseBody(),
-            file = body['image'];
+        // { all: true } ensures we get an array if multiple files share the key 'image'
+        const body = await c.req.parseBody({ all: true });
+        let files = body['image'],
+            tagsInput = body['tags'];
 
-        // Validate the request
-        if (!file || !(file instanceof File))
-            return c.json({ error: "No image provided" }, 400);
+        // Normalize to array
+        if (!files)
+            return c.json({ error: "No images provided" }, 400);
+        if (!Array.isArray(files))
+            files = [files];
 
-        // Get the image details + generate an ID
-        const arrayBuffer = await file.arrayBuffer(),
-            id = crypto.randomUUID(),
-            timestamp = Date.now();
+        // Parse tags
+        const tags = parseTags(tagsInput);
 
-        // Store the image in the R2 bucket
-        await c.env.INKY_IMAGES.put(id, arrayBuffer, {
-            httpMetadata: { contentType: file.type }
-        });
+        // Set up variables
+        const user = getUser(c),
+            timestamp = Date.now(),
+            uploadedIds = [],
+            dbStatements = [];
 
-        // Make sure the images table exists
+        // Ensure tables exist
         await c.env.DB.prepare(`
             CREATE TABLE IF NOT EXISTS images (
                 id TEXT PRIMARY KEY,
                 created INTEGER,
                 width INTEGER,
-                height INTEGER
+                height INTEGER,
+                deleted INTEGER DEFAULT 0,
+                uploaded_by TEXT,
+                deleted_by TEXT,
+                tags TEXT
             )
         `).run();
-
-        // Insert the image into the database
         await c.env.DB.prepare(
-            "INSERT INTO images (id, created) VALUES (?, ?)"
-        ).bind(id, timestamp).run();
+            `CREATE TABLE IF NOT EXISTS tags (tag TEXT PRIMARY KEY)`
+        ).run();
 
-        // Return the ID
-        return c.json({ success: true, id: id });
+        // Add new tags to the master 'tags' list
+        for (const tag of tags)
+            dbStatements.push(c.env.DB.prepare("INSERT OR IGNORE INTO tags (tag) VALUES (?)").bind(tag));
+
+        // Process each file
+        for (const file of files) {
+            if (!(file instanceof File))
+                continue;
+
+            // Get image data + generate ID
+            const arrayBuffer = await file.arrayBuffer(),
+                id = crypto.randomUUID();
+
+            // Upload to R2
+            await c.env.INKY_IMAGES.put(id, arrayBuffer, {
+                httpMetadata: { contentType: file.type }
+            });
+
+            // Prepare D1 Insert
+            dbStatements.push(
+                c.env.DB.prepare(
+                    `INSERT INTO images (id, created, uploaded_by, tags) VALUES (?, ?, ?, ?)`
+                ).bind(id, timestamp, user, JSON.stringify(tags))
+            );
+
+            uploadedIds.push(id);
+        }
+
+        // Execute Batch Insert in D1
+        if (dbStatements.length > 0)
+            await c.env.DB.batch(dbStatements);
+
+        // Return the uploaded IDs
+        return c.json({ success: true, ids: uploadedIds });
     } catch (e) {
         return c.json({ error: e.message }, 500);
     }
 });
 
-// Get a random image, allow for a random key for cache busting
+// Soft delete image endpoint
+v0.delete('/images/:id', async (c) => {
+    const id = c.req.param('id'),
+        user = getUser(c);
+    try {
+        const result = await c.env.DB.prepare(
+            "UPDATE images SET deleted = 1, deleted_by = ? WHERE id = ?"
+        ).bind(user, id).run();
+        if (result.meta.changes > 0)
+            return c.json({ success: true });
+        else
+            return c.json({ error: "Image not found" }, 404);
+    } catch (e) {
+        return c.json({ error: e.message }, 500);
+    }
+});
+
 v0.get('/images/random/:random_key?', async (c) => {
     try {
+        const tags = parseTags(c.req.query('tags') || c.req.query('tag'));
+
+        // Build query
+        let query = "SELECT id FROM images WHERE deleted = 0",
+            params = [];
+
+        // Filter by tags if provided
+        if (tags.length > 0) {
+            query = `
+                SELECT DISTINCT images.id FROM images, json_each(images.tags)
+                WHERE images.deleted = 0 AND json_each.value IN (${tags.map(() => '?').join(',')})
+            `;
+            params = tags;
+        }
+
+        // Add random ordering
+        query += " ORDER BY RANDOM() LIMIT 1";
+
         // Get a random image
-        const result = await c.env.DB.prepare("SELECT id FROM images ORDER BY RANDOM() LIMIT 1").first();
+        const result = await c.env.DB.prepare(query).bind(...params).first();
         if (!result)
             return c.json({ error: "No images found" }, 404);
 
@@ -107,22 +225,33 @@ v0.get('/images/random/:random_key?', async (c) => {
     }
 });
 
-// List images (Gallery API)
+// List endpoint
 v0.get('/images/list', async (c) => {
-    const limit = 20,
-        offset = parseInt(c.req.query('offset') ?? 0);
     try {
-        // Get the images
-        const results = await c.env.DB.prepare(
-            "SELECT * FROM images ORDER BY created DESC LIMIT ? OFFSET ?"
-        ).bind(limit, offset).all();
+        const limit = 20,
+            offset = parseInt(c.req.query('offset') ?? 0),
+            tags = parseTags(c.req.query('tags') || c.req.query('tag'));
+        let query, params;
+
+        // Filter by deleted = 0 and order by created, then filter by tags
+        if (tags.length > 0) {
+            query = `
+                SELECT DISTINCT images.* FROM images, json_each(images.tags) WHERE (deleted = 0 OR deleted IS NULL)
+                AND json_each.value IN (${tags.map(() => '?').join(',')}) ORDER BY created DESC LIMIT ? OFFSET ?
+            `;
+            params = [...tags, limit, offset];
+        } else {
+            query = `SELECT * FROM images WHERE (deleted = 0 OR deleted IS NULL)  ORDER BY created DESC LIMIT ? OFFSET ?`;
+            params = [limit, offset];
+        }
 
         // Return the images and whether or not there are more
+        const res = await c.env.DB.prepare(query).bind(...params).all();
         return c.json({
-            images: results.results,
-            hasMore: results.results.length === limit
+            images: res.results,
+            hasMore: res.results.length === limit
         });
-    } catch (e) {
+    } catch {
         return c.json({ images: [], hasMore: false });
     }
 });

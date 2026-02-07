@@ -32,9 +32,8 @@ const v1 = new Hono().basePath('/api/v1');
 
 // Authentication middleware
 v1.use("/*", async (c, next) => {
-    if (c.env.DEVELOPMENT == "true" || c.env.SKIP_AUTH == "true")
+    if (c.req.path.startsWith("/api/v1/_internal") || c.env.SKIP_AUTH == "true")
         return await next();
-
     let users = [];
     try {
         users = Object.entries(JSON.parse(String(c.env.USERS).trim().replace(/\\"/g, '"')));

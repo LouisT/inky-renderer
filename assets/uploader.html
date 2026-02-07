@@ -10,8 +10,10 @@
       --bg: #121212;
       --card: #1e1e1e;
       --primary: #bb86fc;
+      --primary-dark: #3700b3;
       --text: #e1e1e1;
       --border: #333;
+      --tag-bg: #2c2c2c;
     }
 
     body {
@@ -19,8 +21,8 @@
       color: var(--text);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       display: flex;
+      flex-direction: column;
       align-items: center;
-      justify-content: center;
       min-height: 100vh;
       margin: 0;
       padding: 20px;
@@ -36,6 +38,7 @@
       max-width: 480px;
       text-align: center;
       box-sizing: border-box;
+      margin-top: 5vh;
     }
 
     h1 {
@@ -73,6 +76,59 @@
       font-size: 1rem;
       box-sizing: border-box;
       appearance: none;
+      margin-bottom: 10px;
+    }
+
+    .tag-container {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      padding: 8px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #252525;
+      margin-bottom: 15px;
+      min-height: 48px;
+      box-sizing: border-box;
+      cursor: text;
+    }
+
+    .tag-container:focus-within {
+      border-color: var(--primary);
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      background: var(--primary);
+      color: #000;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+
+    .tag span {
+      margin-left: 6px;
+      cursor: pointer;
+      font-weight: bold;
+      opacity: 0.6;
+    }
+
+    .tag span:hover {
+      opacity: 1;
+    }
+
+    #tagInputRaw {
+      background: transparent;
+      border: none;
+      color: white;
+      font-size: 1rem;
+      flex-grow: 1;
+      min-width: 60px;
+      outline: none;
+      padding: 4px 0;
     }
 
     button {
@@ -81,7 +137,7 @@
       font-weight: 600;
       border: none;
       cursor: pointer;
-      margin-top: 20px;
+      margin-top: 10px;
       transition: background 0.2s;
     }
 
@@ -114,48 +170,80 @@
       text-decoration: underline;
     }
 
-    #preview-container {
-      margin-top: 25px;
+    #gallery-wrapper {
+      width: 100%;
+      max-width: 1200px;
+      margin-top: 40px;
       display: none;
     }
 
-    #preview-image {
-      max-width: 100%;
-      height: auto;
+    .gallery-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 15px;
+      padding-bottom: 10px;
+    }
+
+    h2 {
+      font-weight: 300;
+      font-size: 1.2rem;
+      margin: 0;
+    }
+
+    #gallery-scroll {
+      display: flex;
+      flex-direction: row;
+      overflow-x: auto;
+      gap: 15px;
+      padding: 10px 5px;
+      white-space: nowrap;
+      scrollbar-width: thin;
+      scrollbar-color: var(--primary) var(--bg);
+      -webkit-overflow-scrolling: touch;
+    }
+
+    #gallery-scroll::-webkit-scrollbar {
+      height: 8px;
+    }
+
+    #gallery-scroll::-webkit-scrollbar-track {
+      background: var(--bg);
+    }
+
+    #gallery-scroll::-webkit-scrollbar-thumb {
+      background-color: var(--border);
       border-radius: 4px;
+    }
+
+    #gallery-scroll::-webkit-scrollbar-thumb:hover {
+      background-color: var(--primary);
+    }
+
+    .gallery-item {
+      height: 250px;
+      width: auto;
+      border-radius: 6px;
       border: 1px solid var(--border);
-      margin-top: 10px;
+      flex-shrink: 0;
+      transition: transform 0.2s, border-color 0.2s;
+      background: #000;
+    }
+
+    .gallery-item:hover {
+      border-color: var(--primary);
+      transform: scale(1.02);
+    }
+
+    a.gallery-link {
+      display: block;
+      height: 250px;
+      flex-shrink: 0;
     }
 
     canvas {
       display: none;
-    }
-
-    @media (max-width: 480px) {
-      body {
-        align-items: flex-start;
-        padding: 10px;
-      }
-
-      .container {
-        padding: 1rem 1.25rem 2rem 1.25rem;
-        margin-top: 10px;
-      }
-
-      h1 {
-        font-size: 1.4rem;
-        margin-bottom: 1rem;
-      }
-
-      #drop-zone {
-        padding: 1.5rem 1rem;
-        margin-bottom: 1rem;
-      }
-
-      button {
-        margin-top: 15px;
-        padding: 12px;
-      }
     }
   </style>
 </head>
@@ -164,20 +252,26 @@
   <div class="container">
     <h1>Inky Uploader</h1>
     <div id="drop-zone">
-      <span id="drop-text">Drag and drop image or click to browse</span>
-      <input type="file" id="fileInput" accept="image/*" style="display: none;">
+      <span id="drop-text">Drag and drop images or click to browse</span>
+      <input type="file" id="fileInput" accept="image/*" style="display: none;" multiple>
     </div>
+    <div class="tag-container" id="tagContainer">
+      <input type="text" id="tagInputRaw" list="tagSuggestions" placeholder="Add tags...">
+    </div>
+    <datalist id="tagSuggestions"></datalist>
     <select id="sizeSelect">
       <option value="landscape">Landscape (1200x825)</option>
       <option value="portrait">Portrait (825x1200)</option>
     </select>
     <button id="uploadBtn">Process and Upload</button>
     <div id="status" class="status"></div>
-    <div id="preview-container">
-      <span style="font-size: 0.8rem; color: #aaa;">Latest Upload</span><br>
-      <img id="preview-image" src="" alt="Preview">
+    <a href="/gallery" class="nav-link">View Full Gallery &rarr;</a>
+  </div>
+  <div id="gallery-wrapper">
+    <div class="gallery-header">
+      <h2>Session Uploads</h2>
     </div>
-    <a href="/gallery" class="nav-link">View Gallery &rarr;</a>
+    <div id="gallery-scroll"></div>
   </div>
   <canvas id="canvas"></canvas>
   <script>
@@ -187,22 +281,81 @@
       uploadBtn: document.getElementById('uploadBtn'),
       status: document.getElementById('status'),
       sizeSelect: document.getElementById('sizeSelect'),
+      tagContainer: document.getElementById('tagContainer'),
+      tagInputRaw: document.getElementById('tagInputRaw'),
+      tagSuggestions: document.getElementById('tagSuggestions'),
       canvas: document.getElementById('canvas'),
-      previewImg: document.getElementById('preview-image'),
-      previewContainer: document.getElementById('preview-container'),
+      galleryWrapper: document.getElementById('gallery-wrapper'),
+      galleryScroll: document.getElementById('gallery-scroll'),
       dropText: document.getElementById('drop-text')
     };
-    let selectedFile = null;
-    const updateStatus = (msg) => els.status.innerText = `Status: ${msg}`,
-      handleFile = (file) => {
-        if (!file.type.startsWith('image/'))
-          return updateStatus("Error: Invalid Format");
-        selectedFile = file;
-        els.dropText.innerText = `Loaded: ${file.name}`;
-        updateStatus("Ready for Processing");
-      };
+    let selectedFiles = [],
+      currentTags = [];
+    const MAX_BATCH_SIZE = 50 * 1024 * 1024; // 50MB
+    const updateStatus = (msg) => els.status.innerText = `Status: ${msg}`;
+    const fetchTags = async () => {
+      try {
+        const res = await fetch('/api/v0/images/tags'),
+          data = await res.json();
+        if (data.tags) {
+          els.tagSuggestions.innerHTML = '';
+          data.tags.forEach(tag => {
+            const option = document.createElement('option');
+            option.value = tag;
+            els.tagSuggestions.appendChild(option);
+          });
+        }
+      } catch (e) {
+        console.error("Could not fetch tags", e);
+      }
+    };
+    const renderTags = () => {
+      Array.from(els.tagContainer.getElementsByClassName('tag')).forEach(el => el.remove());
+      currentTags.forEach(tag => {
+        const span = document.createElement('span');
+        span.className = 'tag';
+        span.innerHTML = `${tag} <span onclick="removeTag('${tag}')">&times;</span>`;
+        els.tagContainer.insertBefore(span, els.tagInputRaw);
+      });
+    };
+    const addTag = (tag) => {
+      const cleanTag = tag.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '_');
+      if (cleanTag && !currentTags.includes(cleanTag)) {
+        currentTags.push(cleanTag);
+        renderTags();
+      }
+      els.tagInputRaw.value = '';
+    };
+    window.removeTag = (tag) => {
+      currentTags = currentTags.filter(t => t !== tag);
+      renderTags();
+    };
+    els.tagContainer.onclick = () => els.tagInputRaw.focus();
+    els.tagInputRaw.onkeydown = (e) => {
+      if (e.key === 'Enter' || e.key === ',') {
+        e.preventDefault();
+        addTag(els.tagInputRaw.value);
+      } else if (e.key === 'Backspace' && els.tagInputRaw.value === '' && currentTags.length > 0) {
+        currentTags.pop();
+        renderTags();
+      }
+    };
+    els.tagInputRaw.onblur = () => {
+      if (els.tagInputRaw.value.trim())
+        addTag(els.tagInputRaw.value);
+    };
+    const handleFiles = (files) => {
+      const fileArray = Array.from(files).filter(f => f.type.startsWith('image/'));
+      if (fileArray.length === 0)
+        return updateStatus("Error: No valid images found");
+      selectedFiles = fileArray;
+      els.dropText.innerText = selectedFiles.length === 1 ?
+        `Selected: ${selectedFiles[0].name}` :
+        `Selected: ${selectedFiles.length} images`;
+      updateStatus(`${selectedFiles.length} file(s) ready`);
+    };
     els.dropZone.onclick = () => els.fileInput.click();
-    els.fileInput.onchange = () => els.fileInput.files[0] && handleFile(els.fileInput.files[0]);
+    els.fileInput.onchange = () => els.fileInput.files.length && handleFiles(els.fileInput.files);
     ['dragenter', 'dragover'].forEach(e => {
       els.dropZone.addEventListener(e, (ev) => {
         ev.preventDefault();
@@ -213,56 +366,118 @@
       els.dropZone.addEventListener(e, (ev) => {
         ev.preventDefault();
         els.dropZone.classList.remove('hover');
-        if (e === 'drop' && ev.dataTransfer.files[0]) handleFile(ev.dataTransfer.files[0]);
+        if (e === 'drop' && ev.dataTransfer.files.length)
+          handleFiles(ev.dataTransfer.files);
       });
     });
+    const getProcessedBlob = (file, orientation) => {
+      return new Promise((resolve, reject) => {
+        const [tw, th] = orientation === 'landscape' ? [1200, 825] : [825, 1200],
+          img = new Image();
+        img.src = URL.createObjectURL(file);
+        img.onload = () => {
+          els.canvas.width = tw;
+          els.canvas.height = th;
+          const ctx = els.canvas.getContext('2d'),
+            scale = Math.max(tw / img.width, th / img.height),
+            x = (tw / 2) - (img.width / 2) * scale,
+            y = (th / 2) - (img.height / 2) * scale;
+          ctx.fillStyle = "#000";
+          ctx.fillRect(0, 0, tw, th);
+          ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+          els.canvas.toBlob((blob) => {
+            blob ? resolve(blob) : reject(new Error("Canvas error"));
+          }, 'image/jpeg', 0.95);
+        };
+        img.onerror = () => reject(new Error("Image Load Error"));
+      });
+    };
     els.uploadBtn.onclick = async () => {
-      if (!selectedFile)
+      if (selectedFiles.length === 0)
         return updateStatus("Error: No Input");
       els.uploadBtn.disabled = true;
-      updateStatus("Processing...");
-      const orientation = els.sizeSelect.value,
-        [tw, th] = orientation === 'landscape' ? [1200, 825] : [825, 1200],
-        img = new Image();
-      img.src = URL.createObjectURL(selectedFile);
-      img.onload = () => {
-        els.canvas.width = tw;
-        els.canvas.height = th;
-        const ctx = els.canvas.getContext('2d'),
-          scale = Math.max(tw / img.width, th / img.height),
-          x = (tw / 2) - (img.width / 2) * scale,
-          y = (th / 2) - (img.height / 2) * scale;
-        ctx.fillStyle = "#000";
-        ctx.fillRect(0, 0, tw, th);
-        ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
-        els.canvas.toBlob(async (blob) => {
-          const formData = new FormData();
-          formData.append('image', blob, 'upload.jpg');
-          try {
-            const res = await fetch('/api/v0/images/upload', {
-              method: 'POST',
-              body: formData
+      els.galleryWrapper.style.display = 'block';
+      let successCount = 0,
+        batchFormData = new FormData(),
+        batchSize = 0,
+        currentBatchEntries = [];
+      const tagsString = currentTags.join(',');
+      const sendBatch = async () => {
+        if (currentBatchEntries.length === 0)
+          return;
+        if (tagsString)
+          batchFormData.set('tags', tagsString);
+        updateStatus(`Uploading batch...`);
+        try {
+          const res = await fetch('/api/v0/images/upload', {
+            method: 'POST',
+            body: batchFormData
+          });
+          if (res.status === 401)
+            throw new Error("Access Denied");
+          if (!res.ok)
+            throw new Error("Batch failed");
+          const data = await res.json();
+          if (data.ids && Array.isArray(data.ids)) {
+            data.ids.forEach((id, idx) => {
+              if (currentBatchEntries[idx]) {
+                const entry = currentBatchEntries[idx],
+                  link = document.createElement('a');
+                link.href = `/api/v0/images/${id}`;
+                link.target = '_blank';
+                link.className = 'gallery-link';
+                entry.imgElement.parentNode.replaceChild(link, entry.imgElement);
+                link.appendChild(entry.imgElement);
+              }
             });
-            if (res.status === 401) {
-              updateStatus("Access Denied");
-            } else if (res.ok) {
-              const data = await res.json();
-              updateStatus("Upload Complete");
-              els.previewImg.src = `/api/v0/images/${data.id}?w=400`;
-              els.previewContainer.style.display = 'block';
-              selectedFile = null;
-              els.dropText.innerText = "Drag and drop image or click to browse";
-            } else {
-              updateStatus("Error: Transfer Failed");
-            }
-          } catch (err) {
-            updateStatus("Error: Connection Interrupted");
-          } finally {
-            els.uploadBtn.disabled = false;
+            successCount += data.ids.length;
           }
-        }, 'image/jpeg', 0.95);
+        } catch (e) {
+          console.error(e);
+          throw e;
+        }
+        batchFormData = new FormData();
+        batchSize = 0;
+        currentBatchEntries = [];
       };
+      try {
+        for (let i = 0; i < selectedFiles.length; i++) {
+          updateStatus(`Processing ${i + 1}/${selectedFiles.length}...`);
+          const blob = await getProcessedBlob(selectedFiles[i], els.sizeSelect.value),
+            img = document.createElement('img');
+          img.src = URL.createObjectURL(blob);
+          img.className = 'gallery-item';
+          if (els.galleryScroll.firstChild)
+            els.galleryScroll.insertBefore(img, els.galleryScroll.firstChild);
+          else
+            els.galleryScroll.appendChild(img);
+          if (batchSize + blob.size > MAX_BATCH_SIZE)
+            await sendBatch();
+          batchFormData.append('image', blob, 'upload.jpg');
+          batchSize += blob.size;
+          currentBatchEntries.push({
+            imgElement: img
+          });
+        }
+        await sendBatch();
+        if (successCount > 0) {
+          updateStatus(`Success: ${successCount} uploaded`);
+          selectedFiles = [];
+          currentTags = [];
+          renderTags();
+          els.dropText.innerText = "Drag and drop images or click to browse";
+          els.fileInput.value = "";
+          fetchTags();
+        } else {
+          updateStatus("Error: All uploads failed");
+        }
+      } catch (e) {
+        updateStatus("Error: " + e.message);
+      } finally {
+        els.uploadBtn.disabled = false;
+      }
     };
+    fetchTags();
   </script>
 </body>
 
