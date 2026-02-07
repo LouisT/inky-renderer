@@ -32,11 +32,5 @@
             "5:00pm": "/render/news?section=world",
             "8:00am": "/render/weather?location=Los%20Angeles,%20CA"
         }
-    },
-    "version": "0.0.1",
-    "wifi": {
-        "pass": "a-secret-password",
-        "retries": 6,
-        "ssid": "My Network Name"
     }
 }

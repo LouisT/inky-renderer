@@ -1,23 +1,29 @@
 #ifndef NETWORK_H
 #define NETWORK_H
 
-#include <Inkplate.h>
-#include <esp_err.h>
 #include <ArduinoJson.h>
+#include <Inkplate.h>
 #include <PubSubClient.h>
+#include <esp_err.h>
 
-// Global variables and functions used for networking purposes
+// Global network clients
 extern WiFiClient wifiClient;
-extern WiFiClientSecure wifiSecureClient;
+extern WiFiClientSecure wifiClientSecure;
 extern PubSubClient mqttClient;
 
-// Connect to a WiFi network
-esp_err_t WifiConnect(const char *ssid, const char *pass, int retries);
+// Connects to WiFi or launches the captive portal if connection fails
+esp_err_t WifiConnect(Inkplate &display, int timeoutSeconds,
+                      bool forceConfig = false);
 
-// Connect to an MQTT broker
+// Connects to the MQTT broker using the provided configuration
 esp_err_t MqttConnect(const JsonVariant &mqttConfig);
 
-/// Fetch a remote image and display it on the screen
-esp_err_t DisplayImage(Inkplate &display, int rotation, const char *api, const JsonVariant &imageConfig, const char *renderEndpoint);
+// Fetches a JPEG image from a URL and renders it to the Inkplate
+esp_err_t DisplayImage(Inkplate &display, int rotation, const char *api,
+                       const JsonVariant &imageConfig,
+                       const char *renderEndpoint);
+
+// Starts the OTA web server and blocks execution until timeout or reboot
+void StartOTAServer(Inkplate &display, int rotation);
 
 #endif
