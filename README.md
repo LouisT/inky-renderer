@@ -1,3 +1,5 @@
+## *Development moved to [LTDev-LLC/inky-renderer](https://github.com/LTDev-LLC/inky-renderer); please go there.*
+
 # Inky Renderer
 Firmware + remote rendering service for Inkplate devices via Cloudflare Workers.
 
